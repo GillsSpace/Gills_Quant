@@ -1,6 +1,10 @@
 from datetime import datetime
-import os
 import json
+import os
+from pathlib import Path
+import time as tm
+import pandas as pd
+import schwabdev as sd
 from tradingview_screener import Column, Query
 
 from logic.lib_time import *
@@ -143,3 +147,73 @@ class UniverseManager:
                 f.write(f"{timestamp} - Removed stocks: {', '.join(removed_stocks)}\n")
             if not added_stocks and not removed_stocks:
                 f.write(f"{timestamp} - No changes in the universe.\n")
+
+    @staticmethod
+    def return_universe_list(universe_code: str) -> list:
+        """
+        Returns the list of stock names in the given universe code.
+        """
+        csv_path = UniverseManager.universe_folder_path / f"{universe_code}.csv"
+        if not os.path.exists(csv_path):
+            raise FileNotFoundError(f"Universe CSV file for code {universe_code} not found.")
+
+        df = pd.read_csv(csv_path, keep_default_na=False)
+        if df.empty:
+            return []
+        return df['name'].tolist()
+    
+    @staticmethod
+    def return_universe_quotes_raw(universe_code: str) -> tuple[pd.DataFrame|None, list]:
+        """
+        Return the raw DataFrame of stock quotes for a universe.
+
+        Parameters
+        ----------
+        universe_code : str
+            Universe identifier. It will be coerced to a stripped string.
+
+        Returns
+        -------
+        tuple[Optional[pd.DataFrame], list[str]]
+            a tuple containing a DataFrame of stock quotes if successful, otherwise None,
+            and a list of error messages encountered during the process.
+        """
+        # Normalize and validate input early
+        universe_code = str(universe_code).strip()
+        if not universe_code:
+            return (None, ["Universe code must be a non-empty string."])
+        error_messages = []
+
+        tickers = UniverseManager.return_universe_list(universe_code)
+        if not tickers:
+            error_messages.append(f"Universe {universe_code} is empty.")
+            return (None,error_messages)
+        
+        client = sd.SchwabDevClient()
+        list_of_quotes = []
+        batch_size = 500
+
+        for i in range(0, len(tickers), batch_size):
+            batch = tickers[i:i + batch_size]
+            try:
+                quotes = client.get_quotes(batch)
+                quotes_dict = quotes.json()
+
+                list_of_quotes.extend([
+                    {"ident":key, **value}
+                    for key, value in quotes_dict.items()
+                ])
+
+                if i + batch_size < len(tickers):
+                    tm.sleep(0.2)  # Rate limiting
+
+            except Exception as e:
+                error_messages.append(f"Error fetching quotes for batch {i//batch_size+1}: {str(e)}")
+                continue
+
+        if not list_of_quotes:
+            error_messages.append(f"No quotes retrieved for universe {universe_code}.")
+            return (None,error_messages)
+
+        quotes_df = pd.json_normalize(list_of_quotes)
+        return (quotes_df,error_messages)
