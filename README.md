@@ -20,3 +20,5 @@ sudo apt install nodejs npm
     },
 }
 ```
+
+6. Install nfty to android phone and subscribe to `gills_quant_trading`
