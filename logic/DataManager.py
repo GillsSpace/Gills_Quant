@@ -157,7 +157,7 @@ class DataManager:
 
         data = {
             '5m': (['day', 'time', 'ident', 'qVar'], nan_qVar_array),
-            'fVar': (['day', 'ident', 'fVar'], nan_fVar_array)
+            '1d': (['day', 'ident', 'fVar'], nan_fVar_array)
         }
 
         return xr.Dataset(data, coords=coords)
@@ -188,9 +188,8 @@ class DataManager:
         else:
             ds_disk = xr.open_zarr(db_path, consolidated=True)
             existing_idents = ds_disk.ident.values.tolist()
-
-        if day in ds_disk.dates.values:
-            return
+            if day in ds_disk.dates.values:
+                return
         
         old_set = set(existing_idents)
         new_set = set(new_idents)
@@ -283,8 +282,8 @@ class DataManager:
         """
         Saves quote variable data for a specific day and time into master database.
         """
-        raw_quotes_df = UM.fetch_quotes_for_universe(DataManager.master_universe)
-        
+        (raw_quotes_df,_) = UM.return_universe_quotes_raw(DataManager.master_universe)
+
         error_mask = raw_quotes_df['ident'] == 'errors'
 
         if error_mask.any() and 'invalid_symbols' in raw_quotes_df.columns:
@@ -304,7 +303,7 @@ class DataManager:
         if len(missed_securityStatus) > 0:
             DataManager._log_error_categories(missed_securityStatus,'quote.securityStatus')
 
-        quotes_df = quotes_df[['ident'] + DataManager.quote_fields.set_index('ident')]
+        quotes_df = quotes_df[['ident'] + DataManager.quote_fields].set_index('ident')
         ds_disk = xr.open_zarr(DataManager.hot_path_db, consolidated=True)
 
         # If Day not in DB, add day shell
@@ -342,8 +341,8 @@ class DataManager:
         """
         Saves fundamental variable data for a specific day into master database.
         """
-        raw_fundamentals_df = UM.fetch_fundamentals_for_universe(DataManager.master_universe)
-        
+        (raw_fundamentals_df,_) = UM.return_universe_quotes_raw(DataManager.master_universe)
+
         error_mask = raw_fundamentals_df['ident'] == 'errors'
 
         if error_mask.any() and 'invalid_symbols' in raw_fundamentals_df.columns:
@@ -401,7 +400,7 @@ class DataManager:
         }
 
         ds_to_write = xr.Dataset({
-            'fVar': (['day', 'ident', 'fVar'], empty_fVar_shell)
+            '1d': (['day', 'ident', 'fVar'], empty_fVar_shell)
         })
 
         ds_to_write.to_zarr(DataManager.hot_path_db, region=region_to_update, mode='r+')

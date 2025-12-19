@@ -189,15 +189,15 @@ class UniverseManager:
         if not tickers:
             error_messages.append(f"Universe {universe_code} is empty.")
             return (None,error_messages)
-        
-        client = sd.SchwabDevClient()
+
+        client = create_client_schwab()
         list_of_quotes = []
         batch_size = 500
 
         for i in range(0, len(tickers), batch_size):
             batch = tickers[i:i + batch_size]
             try:
-                quotes = client.get_quotes(batch)
+                quotes = client.quotes(batch)
                 quotes_dict = quotes.json()
 
                 list_of_quotes.extend([

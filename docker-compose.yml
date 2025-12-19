@@ -1,0 +1,15 @@
+services:
+  token-hub:
+    build:
+      context: ./scripts
+      dockerfile: Dockerfile
+    container_name: token-hub
+    restart: always
+    ports:
+      - "8000:8000"
+    working_dir: /app
+    volumes:
+      # Keep your secrets separate
+      - ./secrets:/app/secrets
+      # Mount the specific file so changes reflect immediately
+      - ./scripts/token-server.py:/app/token-server.py
