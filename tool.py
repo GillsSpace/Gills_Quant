@@ -4,8 +4,8 @@ import sys
 from pathlib import Path
 
 # Import local modules
-from logic.lib_file_management import *
-from logic.lib_client_management import *
+from logic.lib_files import *
+from logic.lib_clients import *
 
 if __name__ == "__main__":
     print("Gills Quant Tool")
