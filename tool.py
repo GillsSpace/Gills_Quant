@@ -5,6 +5,7 @@ from pathlib import Path
 
 # Import local modules
 from logic.lib_file_management import *
+from logic.lib_client_management import *
 
 if __name__ == "__main__":
     print("Gills Quant Tool")
@@ -14,9 +15,17 @@ if __name__ == "__main__":
         print("\n----------------------------------------")
         command = input("Enter command: ").strip().lower()
 
+        # Help Test:
         if command in ["help", "h"]:
             print("Available commands:")
-            print("  s-d, setup-dirs - Set up the directory structure.")
-            print("  exit, e, quit, q - Exit the tool.")
+            print("  [s-d] setup-dirs       Set up the directory structure.")
+            print("  [t-s] test-schwab      Test the Schwab client connection.")
+            print("  [e] exit               Exit the tool.")
+
+        # Setup Commands:
         if command in ["s-d", "setup-dirs"]:
             setup_dir_structure()
+
+        # Test Commands:
+        if command in ['t-s', 'test-schwab']:
+            test_client_schwab()
