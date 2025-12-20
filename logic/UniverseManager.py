@@ -59,8 +59,7 @@ class UniverseManager:
         df['name'].to_csv(UniverseManager.universe_folder_path / f"{universe_code}.csv", index=False)
 
         current_month = datetime.now().strftime('%m_%Y')
-        log_dir = UniverseManager.log_base_path / f"universe_change__{current_month}"
-        log_dir.mkdir(parents=True, exist_ok=True)
+        log_dir = UniverseManager.log_base_path / f"universe_change__{current_month}.log"
         with log_dir.open('a') as f:
             timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             f.write(f"{timestamp} - Freshly Generated universe {universe_code} with {len(df)} stocks.\n")
@@ -70,6 +69,9 @@ class UniverseManager:
         """
         Regenerates the CSV files for the given universe code.
         """
+        long_csv_path = UniverseManager.universe_folder_path / f"{universe_code}_long.csv"
+        short_csv_path = UniverseManager.universe_folder_path / f"{universe_code}.csv"
+
         in_conditions = UniverseManager.universe_dict[universe_code]['in']
         out_conditions = UniverseManager.universe_dict[universe_code]['out']
 
@@ -77,9 +79,12 @@ class UniverseManager:
             Query()
             .select(*UniverseManager.long_file_vars)
             .where(*in_conditions)
+            .limit(10_000)
         )
         in_result = in_query.get_scanner_data()
         new_stocks_df = pd.DataFrame(in_result[1])
+
+        print("new_stocks_df:", new_stocks_df)
         
         # Transform names in new_stocks_df
         if not new_stocks_df.empty:
@@ -87,7 +92,6 @@ class UniverseManager:
             new_stocks_df['name'] = new_stocks_df['name'].str.replace(r'\.', '/', regex=True)  # *.* -> */*
         
         existing_df = pd.DataFrame()
-        long_csv_path = f'universes/{universe_code}_long.csv'
 
         if os.path.exists(long_csv_path):
             existing_df = pd.read_csv(long_csv_path)
@@ -126,11 +130,11 @@ class UniverseManager:
             combined_df = combined_df.drop_duplicates(subset=['name'], keep='first')
         
         if not combined_df.empty:
-            combined_df.to_csv(f'universes/{universe_code}_long.csv', index=False)
-            combined_df['name'].to_csv(f'universes/{universe_code}.csv', index=False)
+            combined_df.to_csv(long_csv_path, index=False)
+            combined_df['name'].to_csv(short_csv_path, index=False)
         else:
-            pd.DataFrame(columns=["name", "sector", "exchange", "industry"]).to_csv(f'universes/{universe_code}_long.csv', index=False)
-            pd.DataFrame(columns=["name"]).to_csv(f'universes/{universe_code}.csv', index=False)
+            pd.DataFrame(columns=["name", "sector", "exchange", "industry"]).to_csv(long_csv_path, index=False)
+            pd.DataFrame(columns=["name"]).to_csv(short_csv_path, index=False)
 
         before_stocks_list = existing_df['name'].tolist() if not existing_df.empty else []
         after_stocks_list = combined_df['name'].tolist() if not combined_df.empty else []
@@ -138,8 +142,8 @@ class UniverseManager:
         removed_stocks = list(set(before_stocks_list) - set(after_stocks_list))
 
         current_month = datetime.now().strftime('%m_%Y')
-        log_dir = UniverseManager.log_base_path / f"universe_change__{current_month}"
-        log_dir.mkdir(parents=True, exist_ok=True)
+        log_dir = UniverseManager.log_base_path / f"universe_change__{current_month}.log"
+        UniverseManager.log_base_path.mkdir(parents=True, exist_ok=True)
         with log_dir.open('a') as f:
             timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             if added_stocks:

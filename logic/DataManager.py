@@ -272,6 +272,7 @@ class DataManager:
         """
         Creates a new database starting from the initial_day with the master universe.
         """
+        UM.gen_csv(DataManager.master_universe)
         idents = UM.return_universe_list(DataManager.master_universe)
         if os.path.exists(DataManager.hot_path_db):
             shutil.rmtree(DataManager.hot_path_db)

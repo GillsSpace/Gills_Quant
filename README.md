@@ -23,4 +23,6 @@ sudo apt install nodejs npm
 
 6. Install nfty to android phone and subscribe to `gills_quant_trading`
 
+7. run `docker compose up -d --build` to start api service to recive tokens.
+
 7. run `tailscale serve --bg 8000` on gill_01. Take note of url.
