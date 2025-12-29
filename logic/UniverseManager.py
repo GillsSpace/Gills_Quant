@@ -147,9 +147,9 @@ class UniverseManager:
         with log_dir.open('a') as f:
             timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             if added_stocks:
-                f.write(f"{timestamp} - Added stocks: {', '.join(added_stocks)}\n")
+                f.write(f"{timestamp} - Added {len(added_stocks)} stocks: {', '.join(added_stocks)}\n")
             if removed_stocks:
-                f.write(f"{timestamp} - Removed stocks: {', '.join(removed_stocks)}\n")
+                f.write(f"{timestamp} - Removed {len(removed_stocks)} stocks: {', '.join(removed_stocks)}\n")
             if not added_stocks and not removed_stocks:
                 f.write(f"{timestamp} - No changes in the universe.\n")
 

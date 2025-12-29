@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+import time as tm
 
 root_path = Path.cwd().parent if "__file__" not in globals() else Path(__file__).resolve().parent.parent
 if str(root_path) not in sys.path:
@@ -11,6 +12,9 @@ from logic.lib_time import *
 from logic.lib_notifications import *
 
 def main():
+
+    st = tm.time()
+
     datetime_raw = datetime.now()
     datetime_rounded = round_to_nearest_5m(datetime_raw)
     date_str = datetime_rounded.strftime("%Y-%m-%d")
@@ -28,6 +32,9 @@ def main():
 
     if time_str == '04:00':
         dm.save_fVar_data(date_str)
+
+    et = tm.time()
+    total_time = round(et - st, 2)
 
 if __name__ == "__main__":
     main()

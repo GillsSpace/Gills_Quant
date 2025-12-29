@@ -125,8 +125,8 @@ class DataManager:
             f.write(f"{timestamp} - Errors for symbols: {error_symbols}\n")
 
     @staticmethod
-    def _log_error_catagories(missed_catagories,catagory_type:str):
-        if not missed_catagories:
+    def _log_error_categories(missed_categories, category_type:str):
+        if not missed_categories:
             return
 
         current_month = datetime.now().strftime('%m_%Y')
@@ -135,7 +135,7 @@ class DataManager:
 
         with log_path.open('a') as f:
             timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            f.write(f"{timestamp} - Missed catagory for {catagory_type}: {missed_catagories}\n")
+            f.write(f"{timestamp} - Missed category for {category_type}: {missed_categories}\n")
 
     @staticmethod
     def create_empty_day_shell(day,idents):
@@ -163,13 +163,13 @@ class DataManager:
         return xr.Dataset(data, coords=coords)
 
     @staticmethod
-    def add_db_day_shell(day,new_idents=None,is_initial_creation=False):
+    def add_db_day_shell(day,idents_for_day=None,is_initial_creation=False):
         """
         Adds a new day shell. If the symbols have changed, it rebuilds the entire
         database with a combined list of symbols.
         
         Args:
-            day: Date string (YYYYMMDD format assumed based on code)
+            day: Date string (YYYY-MM-DD format)
             new_idents: List of symbol identifiers. If None, fetches from UniverseManager
             is_initial_creation: Set True when creating database from scratch
         """
@@ -180,19 +180,19 @@ class DataManager:
         temp_db_path = DataManager.hot_path / f'temp_master_db.zarr'
         db_path = DataManager.hot_path / 'master_db.zarr'
 
-        if not new_idents:
-            new_idents = UM.return_universe_list(UM.master_universe)
+        if not idents_for_day:
+            idents_for_day = UM.return_universe_list(DataManager.master_universe)
 
         if is_initial_creation:
             existing_idents = []
         else:
             ds_disk = xr.open_zarr(db_path, consolidated=True)
             existing_idents = ds_disk.ident.values.tolist()
-            if day in ds_disk.dates.values:
+            if day in ds_disk.day.values:
                 return
         
         old_set = set(existing_idents)
-        new_set = set(new_idents)
+        new_set = set(idents_for_day)
 
         if old_set == new_set and not is_initial_creation:
             ds_shell = DataManager.create_empty_day_shell(day,existing_idents)
@@ -364,16 +364,15 @@ class DataManager:
         fundamentals_df['fundamental.nextDivExDate'] = pd.to_numeric(fundamentals_df['fundamental.nextDivExDate'].str[:10].str.replace('-', ''), errors='coerce')
         fundamentals_df['fundamental.nextDivPayDate'] = pd.to_numeric(fundamentals_df['fundamental.nextDivPayDate'].str[:10].str.replace('-', ''), errors='coerce')
 
-        fundamentals_df['assetSubType'] = fundamentals_df['assetSubType'].astype(self.fundamental_assetSubType_dtype).cat.codes.replace(-1,np.nan)
-        fundamentals_df['reference.exchange'] = fundamentals_df['reference.exchange'].astype(self.fundamental_exchange_dtype).cat.codes.replace(-1,np.nan)
+        fundamentals_df['assetSubType'] = fundamentals_df['assetSubType'].astype(DataManager.fundamental_assetSubType_dtype).cat.codes.replace(-1,np.nan)
+        fundamentals_df['reference.exchange'] = fundamentals_df['reference.exchange'].astype(DataManager.fundamental_exchange_dtype).cat.codes.replace(-1,np.nan)
         missed_asset_subtypes = fundamentals_df['assetSubType'][fundamentals_df['assetSubType'].isna()].unique()
         missed_exchanges = fundamentals_df['reference.exchange'][fundamentals_df['reference.exchange'].isna()].unique()
         if len(missed_asset_subtypes) > 0:
-            real_time = datetime.now()
-            DataManager._log_error_category(missed_asset_subtypes, 'assetSubType', real_time)
+            DataManager._log_error_categories(missed_asset_subtypes, 'assetSubType')
         if len(missed_exchanges) > 0:
             real_time = datetime.now()
-            DataManager._log_error_category(missed_exchanges, 'reference.exchange', real_time)
+            DataManager._log_error_categories(missed_exchanges, 'reference.exchange')
 
         fundamentals_df = fundamentals_df[['ident']+DataManager.fundamental_fields].set_index('ident')
 
@@ -455,12 +454,15 @@ class DataManager:
             ds_disk.close()
 
     @staticmethod
-    def remove_old_hot_data():
+    def retention_trim_db():
         """
-        Removes hot data older than the retention period.
+        Removes data from hot database that is older than the retention period. Also removes any idents that have all NaN data across all days(have not been in the universe for full retention period).
         """
         if not os.path.exists(DataManager.hot_path_db):
             return
+        
+        # Suppress Zarr V3 specification warnings
+        warnings.filterwarnings('ignore', category=UserWarning, module='zarr.*')
 
         ds_disk = xr.open_zarr(DataManager.hot_path_db, consolidated=True)
 
@@ -486,16 +488,36 @@ class DataManager:
             # Select only the days to keep
             ds_subset = ds_disk.sel(day=days_to_keep)
 
-            # Ensure clean encodings (prevents chunk/encoding issues on write)
+            # Identify idents with all NaN data across all days
+            has_5m_data = ~ds_subset['5m'].isnull().all(dim=['day', 'time', 'qVar'])
+            has_1d_data = ~ds_subset['1d'].isnull().all(dim=['day', 'fVar'])
+            valid_idents_mask = has_5m_data | has_1d_data
+            idents_to_keep = ds_subset.ident.values[valid_idents_mask.values].tolist()
+
+            # Re-select dataset with valid idents only
+            ds_subset = ds_subset.sel(ident=idents_to_keep)
+
+            # 1. Clear encodings to prevent old chunk metadata from interfering
             for var in ds_subset.variables:
                 ds_subset[var].encoding.clear()
+
+            # 2. UNIFY CHUNKS (The Fix)
+            # You can use 'auto' or specify a logical shape. 
+            # Given your 5m data is (day, time, ident, qVar):
+            ds_subset = ds_subset.chunk({
+                'day': 1,        # One day per chunk is usually best for time-series access
+                'time': -1,      # All times in one chunk (288 is small)
+                'ident': 10,     # Small groups of symbols
+                'qVar': -1       # All variables in one chunk
+            })
 
             temp_db_path = DataManager.hot_path / 'temp_master_db.zarr'
 
             if os.path.exists(temp_db_path):
                 shutil.rmtree(temp_db_path)
 
-            ds_subset.to_zarr(temp_db_path, mode='w', consolidated=False)
+            # Use consolidated=True for better read performance later
+            ds_subset.to_zarr(temp_db_path, mode='w', consolidated=True)
             zarr.consolidate_metadata(str(temp_db_path))
 
             ds_disk.close()
@@ -564,5 +586,126 @@ class DataManager:
         shutil.copytree(DataManager.hot_path, hot_backup_path)
         shutil.copytree(DataManager.cold_path, cold_backup_path)
             
+    @staticmethod
+    def return_db_stats() -> dict:
+        """
+        Returns statistics about the master database.
+        """
+        if not os.path.exists(DataManager.hot_path_db):
+            return None
 
+        ds_disk = xr.open_zarr(DataManager.hot_path_db, consolidated=True)
+
+        try:
+            num_days = len(ds_disk.day)
+            num_idents = len(ds_disk.ident)
+            num_qVars = len(ds_disk.qVar)
+            num_fVars = len(ds_disk.fVar)
+            all_days = ds_disk.day.values.tolist()
+            current_universe_size = len(UM.return_universe_list(DataManager.master_universe))
+
+            stats = {
+                'num_days': num_days,
+                'num_idents': num_idents,
+                'num_qVars': num_qVars,
+                'num_fVars': num_fVars,
+                'current_universe_size': current_universe_size,
+            }
+
+            return stats
+        finally:
+            ds_disk.close()
         
+    @staticmethod
+    def gen_test_db(num_days:int, num_idents:int, start_date:str, num_full_nan_idents:int, random_day_skips:bool=True):
+        """
+        Gnerate a test database with specified parameters. Will overwrite existing test database if present.
+        
+        :param num_days: length of days dimension
+        :type num_days: int
+        :param num_idents: length of idents dimension
+        :type num_idents: int
+        :param start_date: Day to start the database from (YYYY-MM-DD format)
+        :type start_date: str
+        :param num_full_nan_idents: Include this many idents that have all NaN data across all days (to simulate removed symbols).
+        :type num_full_nan_idents: int
+        :param random_day_skips: If True, randomly skip some days to simulate missing data.
+        :type random_day_skips: bool
+        """
+        from random import sample
+
+        # Suppress Zarr V3 specification warnings
+        warnings.filterwarnings('ignore', category=UserWarning, module='zarr.*')
+
+        db_path = DataManager.hot_path_db
+        if os.path.exists(db_path):
+            shutil.rmtree(db_path)
+
+        date_range = pd.date_range(start=start_date, periods=num_days, freq='D')
+        day_list = date_range.strftime('%Y-%m-%d').tolist()
+
+        if random_day_skips:
+            num_skips = max(1, num_days // 10)  # Skip ~10% of days
+            skip_days = set(sample(day_list, num_skips))
+            day_list = [d for d in day_list if d not in skip_days]
+
+        idents = [f'SYM{i:05d}' for i in range(num_idents - num_full_nan_idents)]
+        idents += [f'FULLNAN{i:05d}' for i in range(num_full_nan_idents)]
+
+        num_valid = num_idents - num_full_nan_idents
+        qVar_length = len(DataManager.quote_fields)
+        fVar_length = len(DataManager.fundamental_fields)
+
+        # Initialize with NaNs
+        nan_qVar_array = np.full((len(day_list), 288, len(idents), qVar_length), np.nan)
+        nan_fVar_array = np.full((len(day_list), len(idents), fVar_length), np.nan)
+
+        # Indices for specific field types to make data look "plausible"
+        # We'll target prices and volume to ensure the symbol is considered 'active'
+        price_indices = [i for i, f in enumerate(DataManager.quote_fields) if 'Price' in f or 'mark' in f]
+        vol_indices = [i for i, f in enumerate(DataManager.quote_fields) if 'Volume' in f or 'Size' in f]
+
+        for s_idx in range(num_valid):
+            # 1. Simulate a random walk for prices to fill 5m data
+            # Start at a random price between 10 and 500
+            start_px = np.random.uniform(10, 500)
+            
+            # Generate returns: Mean 0, 0.1% volatility per 5m bar
+            returns = np.random.normal(loc=0, scale=0.001, size=(len(day_list), 288))
+            price_path = start_px * np.exp(np.cumsum(returns))
+            price_path = price_path.reshape(len(day_list), 288)
+
+            for p_idx in price_indices:
+                nan_qVar_array[:, :, s_idx, p_idx] = price_path
+            
+            for v_idx in vol_indices:
+                # Random volumes between 100 and 10000
+                nan_qVar_array[:, :, s_idx, v_idx] = np.random.randint(100, 10000, size=(len(day_list), 288))
+
+            # 2. Add Fundamental data (Close Price)
+            # Use the last price of the day for quote.closePrice in fVar
+            if 'quote.closePrice' in DataManager.fundamental_fields:
+                f_idx = DataManager.fundamental_fields.index('quote.closePrice')
+                nan_fVar_array[:, s_idx, f_idx] = price_path[:, -1]
+
+            # 3. Simulate missing data (randomly re-insert NaNs)
+            # This masks ~15% of the "valid" data points to simulate dropped ticks
+            mask = np.random.choice([True, False], size=nan_qVar_array[:, :, s_idx, :].shape, p=[0.15, 0.85])
+            nan_qVar_array[:, :, s_idx, :][mask] = np.nan
+
+        coords = {
+            'day': day_list,
+            'time': pd.date_range(start='00:00', end='23:55', freq='5min').strftime('%H:%M').tolist(),
+            'ident': idents,
+            'qVar': DataManager.quote_fields,
+            'fVar': DataManager.fundamental_fields,
+        }
+
+        data = {
+            '5m': (['day', 'time', 'ident', 'qVar'], nan_qVar_array),
+            '1d': (['day', 'ident', 'fVar'], nan_fVar_array)
+        }
+
+        ds_test = xr.Dataset(data, coords=coords)
+
+        ds_test.to_zarr(db_path, mode='w', consolidated=True)

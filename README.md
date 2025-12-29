@@ -26,3 +26,5 @@ sudo apt install nodejs npm
 7. run `docker compose up -d --build` to start api service to recive tokens.
 
 7. run `tailscale serve --bg 8000` on gill_01. Take note of url.
+
+### DB Setup:
