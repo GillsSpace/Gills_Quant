@@ -709,3 +709,27 @@ class DataManager:
         ds_test = xr.Dataset(data, coords=coords)
 
         ds_test.to_zarr(db_path, mode='w', consolidated=True)
+
+    @staticmethod
+    def return_hot_store() -> xr.Dataset:
+        """
+        Returns the hot master database as an xarray Dataset.
+        """
+        if not os.path.exists(DataManager.hot_path_db):
+            return None
+
+        ds_disk = xr.open_zarr(DataManager.hot_path_db, consolidated=True)
+        return ds_disk
+    
+    @staticmethod
+    def return_cold_store(month:int, year:int) -> xr.Dataset:
+        """
+        Returns the cold backup database for the specified month and year as an xarray Dataset.
+        """
+        backup_path = DataManager.cold_path / f"master_db_month__{month}_{year}.zarr"
+
+        if not os.path.exists(backup_path):
+            return None
+
+        ds_disk = xr.open_zarr(backup_path, consolidated=True)
+        return ds_disk
