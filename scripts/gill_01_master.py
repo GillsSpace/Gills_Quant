@@ -28,6 +28,10 @@ def main():
         next_day = (datetime_rounded + timedelta(days=1)).strftime("%Y-%m-%d")
         UM.regen_csv('u00')
         dm.add_db_day_shell(next_day)
+
+        if date_str[8:10] == '01':
+            dm.make_month_cold_backup(month=date_str[5:7], year=date_str[0:4])
+
         send_daily_notification()
 
     if time_str == '04:00':
