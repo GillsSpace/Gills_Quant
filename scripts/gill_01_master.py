@@ -21,6 +21,7 @@ def main():
     time_str = datetime_rounded.strftime("%H:%M")
 
     #Always Run:
+    print(f"Running Gill Master Script for {date_str} at {time_str}")
     dm = DM()
     dm.save_qVar_data(date_str, time_str)
 

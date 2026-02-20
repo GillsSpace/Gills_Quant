@@ -1,4 +1,4 @@
-import ntfy
+import python_ntfy
 import json
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
@@ -15,12 +15,8 @@ def send_ntfy_notification(title: str, message: str) -> None:
         The body message of the notification.
     """
     topic = "gills_quant_trading"
-    ntfy.notify(
-        topic=topic,
-        title=title,
-        message=message,
-        priority=3,  # Normal priority
-    )
+    client = python_ntfy.NtfyClient(topic=topic)
+    client.send(title=title, message=message)
 
 def send_daily_notification():
     token_file = Path(__file__).resolve().parent.parent / 'secrets' / 'tokens.json'

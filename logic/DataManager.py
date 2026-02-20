@@ -14,6 +14,8 @@ from datetime import datetime, timedelta, time, date
 from logic.lib_time import *
 from logic.UniverseManager import UniverseManager as UM
 
+warnings.filterwarnings("ignore", message=".*Zarr format 3.*")
+
 class DataManager:
 
     data_path = Path(__file__).resolve().parent.parent / 'data'
@@ -136,6 +138,19 @@ class DataManager:
         with log_path.open('a') as f:
             timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             f.write(f"{timestamp} - Missed category for {category_type}: {missed_categories}\n")
+
+    @staticmethod
+    def _log_error_missed_idents(missed_idents):
+        if not missed_idents:
+            return
+
+        current_month = datetime.now().strftime('%m_%Y')
+        log_path = DataManager.log_path / f"missed_idents__{current_month}.log"
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+
+        with log_path.open('a') as f:
+            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            f.write(f"{timestamp} - Missed idents: {missed_idents}\n")
 
     @staticmethod
     def create_empty_day_shell(day,idents):
@@ -298,13 +313,16 @@ class DataManager:
             quotes_df[col] = np.nan
 
         #Custom Data Cleaning:
-        quotes_df['quote.securityStatus'] = quotes_df['quote.securityStatus'].astype(DataManager.quote_securityStatus_dtype).cat.codes.replace(-1, np.nan)
-
-        missed_securityStatus = quotes_df['quote.securityStatus'][quotes_df['quote.securityStatus'].isna()].unique()
+        valid_cats = DataManager.quote_securityStatus_dtype.categories
+        raw_status = quotes_df['quote.securityStatus'].dropna().unique()
+        missed_securityStatus = [s for s in raw_status if s not in valid_cats]
+        
         if len(missed_securityStatus) > 0:
-            DataManager._log_error_categories(missed_securityStatus,'quote.securityStatus')
+            DataManager._log_error_categories(missed_securityStatus, 'quote.securityStatus')
 
+        quotes_df['quote.securityStatus'] = quotes_df['quote.securityStatus'].astype(DataManager.quote_securityStatus_dtype).cat.codes.replace(-1, np.nan)
         quotes_df = quotes_df[['ident'] + DataManager.quote_fields].set_index('ident')
+
         ds_disk = xr.open_zarr(DataManager.hot_path_db, consolidated=True)
 
         # If Day not in DB, add day shell
@@ -319,12 +337,20 @@ class DataManager:
         existing_idents = ds_disk.ident.values.tolist()
         empty_time_shell = np.full((1,1,len(existing_idents),len(DataManager.quote_fields)),np.nan)
 
-        target_idxs = [
-            existing_idents.index(ident) for ident in quotes_df.index if ident in existing_idents
-        ]
+        # 2. Log any Schwab API anomalies or new tickers awaiting tomorrow's shell
+        missed_idxs = [ident for ident in quotes_df.index if ident not in existing_idents]
+        if len(missed_idxs) > 0:
+            DataManager._log_error_missed_idents(missed_idxs)
 
+        # 3. Intersect and filter to prevent shape mismatch
+        valid_idents = quotes_df.index.intersection(existing_idents)
+        quotes_df = quotes_df.loc[valid_idents]
+        
+        target_idxs = [existing_idents.index(ident) for ident in valid_idents]
+
+        # 4. Insert safely
         empty_time_shell[0,0,target_idxs,:] = quotes_df.to_numpy()
-
+        
         region_to_update = {
             "day": slice(day_idx, day_idx + 1),
             "time": slice(time_idx, time_idx + 1),
@@ -364,15 +390,24 @@ class DataManager:
         fundamentals_df['fundamental.nextDivExDate'] = pd.to_numeric(fundamentals_df['fundamental.nextDivExDate'].str[:10].str.replace('-', ''), errors='coerce')
         fundamentals_df['fundamental.nextDivPayDate'] = pd.to_numeric(fundamentals_df['fundamental.nextDivPayDate'].str[:10].str.replace('-', ''), errors='coerce')
 
-        fundamentals_df['assetSubType'] = fundamentals_df['assetSubType'].astype(DataManager.fundamental_assetSubType_dtype).cat.codes.replace(-1,np.nan)
-        fundamentals_df['reference.exchange'] = fundamentals_df['reference.exchange'].astype(DataManager.fundamental_exchange_dtype).cat.codes.replace(-1,np.nan)
-        missed_asset_subtypes = fundamentals_df['assetSubType'][fundamentals_df['assetSubType'].isna()].unique()
-        missed_exchanges = fundamentals_df['reference.exchange'][fundamentals_df['reference.exchange'].isna()].unique()
+        # 1. Find unmapped categories BEFORE transforming (ignoring normal NaNs)
+        valid_subtypes = DataManager.fundamental_assetSubType_dtype.categories
+        raw_subtypes = fundamentals_df['assetSubType'].dropna().unique()
+        missed_asset_subtypes = [s for s in raw_subtypes if s not in valid_subtypes]
+        
+        valid_exchanges = DataManager.fundamental_exchange_dtype.categories
+        raw_exchanges = fundamentals_df['reference.exchange'].dropna().unique()
+        missed_exchanges = [s for s in raw_exchanges if s not in valid_exchanges]
+
+        # 2. Log any missing strings
         if len(missed_asset_subtypes) > 0:
             DataManager._log_error_categories(missed_asset_subtypes, 'assetSubType')
         if len(missed_exchanges) > 0:
-            real_time = datetime.now()
             DataManager._log_error_categories(missed_exchanges, 'reference.exchange')
+
+        # 3. Safely transform to codes
+        fundamentals_df['assetSubType'] = fundamentals_df['assetSubType'].astype(DataManager.fundamental_assetSubType_dtype).cat.codes.replace(-1,np.nan)
+        fundamentals_df['reference.exchange'] = fundamentals_df['reference.exchange'].astype(DataManager.fundamental_exchange_dtype).cat.codes.replace(-1,np.nan)
 
         fundamentals_df = fundamentals_df[['ident']+DataManager.fundamental_fields].set_index('ident')
 
@@ -389,9 +424,14 @@ class DataManager:
         existing_idents = ds_disk.ident.values.tolist()
         empty_fVar_shell = np.full((1,len(existing_idents),len(DataManager.fundamental_fields)),np.nan)
 
-        target_idxs = [
-            existing_idents.index(ident) for ident in fundamentals_df.index if ident in existing_idents
-        ]
+        missed_idxs = [ident for ident in fundamentals_df.index if ident not in existing_idents]
+        if len(missed_idxs) > 0:
+            DataManager._log_error_missed_idents(missed_idxs)
+
+        valid_idents = fundamentals_df.index.intersection(existing_idents)
+        fundamentals_df = fundamentals_df.loc[valid_idents]
+
+        target_idxs = [existing_idents.index(ident) for ident in valid_idents]
 
         empty_fVar_shell[0,target_idxs,:] = fundamentals_df.to_numpy()
 

@@ -94,7 +94,7 @@ class UniverseManager:
         existing_df = pd.DataFrame()
 
         if os.path.exists(long_csv_path):
-            existing_df = pd.read_csv(long_csv_path)
+            existing_df = pd.read_csv(long_csv_path, keep_default_na=False)
             
             out_query = (
                 Query()
@@ -147,9 +147,9 @@ class UniverseManager:
         with log_dir.open('a') as f:
             timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             if added_stocks:
-                f.write(f"{timestamp} - Added {len(added_stocks)} stocks: {', '.join(added_stocks)}\n")
+                f.write(f"{timestamp} - Added {len(added_stocks)} stocks: {', '.join(str(s) for s in added_stocks)}\n")
             if removed_stocks:
-                f.write(f"{timestamp} - Removed {len(removed_stocks)} stocks: {', '.join(removed_stocks)}\n")
+                f.write(f"{timestamp} - Removed {len(removed_stocks)} stocks: {', '.join(str(s) for s in removed_stocks)}\n")
             if not added_stocks and not removed_stocks:
                 f.write(f"{timestamp} - No changes in the universe.\n")
 
