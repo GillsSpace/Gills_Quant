@@ -10,3 +10,44 @@ def round_to_nearest_5m(dt:datetime) -> datetime:
     if discard >= timedelta(minutes=2.5):
         dt += timedelta(minutes=5)
     return dt
+
+def return_time_str_range(start:str, end:str=None, n=None) -> list:
+    """
+    Return a list of time strings in 5 minute intervals
+
+    If start and end are provided, return the range between them.
+    If start and n are provided, return n intervals starting from start.
+    If end and n are provided, return n intervals ending at end.
+    """
+    time_range = []
+    if n is None:
+        start_dt = datetime.strptime(start, "%H:%M")
+        end_dt = datetime.strptime(end, "%H:%M")
+        current_dt = start_dt
+        while current_dt <= end_dt:
+            time_range.append(current_dt.strftime("%H:%M"))
+            current_dt += timedelta(minutes=5)
+    elif n is not None:
+        if start is not None:
+            start_dt = datetime.strptime(start, "%H:%M")
+            for i in range(n):
+                time_range.append(start_dt.strftime("%H:%M"))
+                start_dt += timedelta(minutes=5)
+        elif end is not None:
+            end_dt = datetime.strptime(end, "%H:%M")
+            for i in range(n):
+                time_range.append(end_dt.strftime("%H:%M"))
+                end_dt -= timedelta(minutes=5)
+            time_range.reverse()
+    return time_range
+
+def return_time_shift(time:str, mins:int=None, n:int=None) -> str:
+    """Return a time string shifted by a certain number of minutes or 5-minute intervals."""
+    time_dt = datetime.strptime(time, "%H:%M")
+    if mins is not None:
+        shifted_dt = time_dt + timedelta(minutes=mins)
+    elif n is not None:
+        shifted_dt = time_dt + timedelta(minutes=5 * n)
+    else:
+        shifted_dt = time_dt
+    return shifted_dt.strftime("%H:%M")

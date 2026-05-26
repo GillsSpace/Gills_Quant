@@ -8,6 +8,7 @@ if str(root_path) not in sys.path:
 
 from logic.UniverseManager import UniverseManager as UM
 from logic.DataManager import DataManager as DM
+from logic.PaperManager import PaperManager as PM
 from logic.lib_time import *
 from logic.lib_notifications import *
 
@@ -19,11 +20,19 @@ def main():
     datetime_rounded = round_to_nearest_5m(datetime_raw)
     date_str = datetime_rounded.strftime("%Y-%m-%d")
     time_str = datetime_rounded.strftime("%H:%M")
+    day_of_week = datetime_rounded.strftime("%A")
 
     #Always Run:
     print(f"Running Gill Master Script for {date_str} at {time_str}")
     dm = DM()
     dm.save_qVar_data(date_str, time_str)
+    #PM.execute_paper_trading(time_str)
+
+    if time_str in return_time_str_range(start='09:30', end='16:00') and day_of_week in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']:
+        try:
+            PM.execute_paper_trading(time=time_str)
+        except:
+            print(' Error Running Paper Trading Executions')
 
     if time_str == '23:40':
         next_day = (datetime_rounded + timedelta(days=1)).strftime("%Y-%m-%d")

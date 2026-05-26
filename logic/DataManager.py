@@ -15,6 +15,7 @@ from logic.lib_time import *
 from logic.UniverseManager import UniverseManager as UM
 
 warnings.filterwarnings("ignore", message=".*Zarr format 3.*")
+warnings.filterwarnings("ignore", message=".*does not have a Zarr V3 specification.*")
 
 class DataManager:
 
@@ -23,10 +24,65 @@ class DataManager:
     cold_path = data_path / 'cold'
     hot_path_db = hot_path / 'master_db.zarr'
     log_path = Path(__file__).resolve().parent.parent / 'logs'
-    
 
     master_universe = 'u00'
-    hot_data_retention_days = 120
+    hot_data_retention_days = 180
+
+    Q_HTB_RATE = 'reference.htbRate'
+    Q_HTB_QUANTITY = 'reference.htbQuantity'
+    Q_ASK_PRICE_EXT = 'extended.askPrice'
+    Q_ASK_SIZE_EXT = 'extended.askSize'
+    Q_BID_PRICE_EXT = 'extended.bidPrice'
+    Q_BID_SIZE_EXT = 'extended.bidSize'
+    Q_LAST_PRICE_EXT = 'extended.lastPrice'
+    Q_LAST_SIZE_EXT = 'extended.lastSize'
+    Q_TRADE_TIME_EXT = 'extended.tradeTime'
+    Q_TOTAL_VOLUME_EXT = 'extended.totalVolume'
+    Q_QUOTE_TIME_EXT = 'extended.quoteTime'
+    Q_MARK_EXT = 'extended.mark'
+    Q_ASK_PRICE = 'quote.askPrice'
+    Q_ASK_SIZE = 'quote.askSize'
+    Q_ASK_TIME = 'quote.askTime'
+    Q_BID_PRICE = 'quote.bidPrice'
+    Q_BID_SIZE = 'quote.bidSize'
+    Q_BID_TIME = 'quote.bidTime'
+    Q_LAST_PRICE = 'quote.lastPrice'
+    Q_LAST_SIZE = 'quote.lastSize'
+    Q_TRADE_TIME = 'quote.tradeTime'
+    Q_TOTAL_VOLUME = 'quote.totalVolume'
+    Q_QUOTE_TIME = 'quote.quoteTime'
+    Q_MARK = 'quote.mark'
+    Q_52WEEK_HIGH = 'quote.52WeekHigh'
+    Q_52WEEK_LOW = 'quote.52WeekLow'
+    Q_HIGH_PRICE = 'quote.highPrice'
+    Q_LOW_PRICE = 'quote.lowPrice'
+    Q_MARK_CHANGE = 'quote.markChange'
+    Q_MARK_PERCENT_CHANGE = 'quote.markPercentChange'
+    Q_OPEN_PRICE = 'quote.openPrice'
+    Q_NET_CHANGE = 'quote.netChange'
+    Q_NET_PERCENT_CHANGE = 'quote.netPercentChange'
+    Q_SECURITY_STATUS = 'quote.securityStatus'
+    Q_POST_MARKET_CHANGE = 'quote.postMarketChange'
+    Q_POST_MARKET_PERCENT_CHANGE = 'quote.postMarketPercentChange'
+
+    F_ASSET_SUBTYPE = 'assetSubType'
+    F_SSID = 'ssid'
+    F_EXCHANGE = 'reference.exchange'
+    F_AVG_10DAYS_VOLUME = 'fundamental.avg10DaysVolume'
+    F_AVG_1YEAR_VOLUME = 'fundamental.avg1YearVolume'
+    F_DECLARATION_DATE = 'fundamental.declarationDate'
+    F_DIV_AMOUNT = 'fundamental.divAmount'
+    F_DIV_YIELD = 'fundamental.divYield'
+    F_DIV_EX_DATE = 'fundamental.divExDate'
+    F_DIV_FREQ = 'fundamental.divFreq'
+    F_DIV_PAY_DATE = 'fundamental.divPayDate'
+    F_DIV_PAY_AMOUNT = 'fundamental.divPayAmount'
+    F_EPS = 'fundamental.eps'
+    F_LAST_EARNINGS_DATE = 'fundamental.lastEarningsDate'
+    F_NEXT_DIV_EX_DATE = 'fundamental.nextDivExDate'
+    F_NEXT_DIV_PAY_DATE = 'fundamental.nextDivPayDate'
+    F_PE_RATIO = 'fundamental.peRatio'
+    F_CLOSE_PRICE = 'quote.closePrice'
 
     quote_fields = [
         'reference.htbRate',
@@ -93,12 +149,15 @@ class DataManager:
         'Halted',
         'Closed',
         'Unknown',
+        'None',
     ], ordered=True)
 
     fundamental_assetSubType_dtype = CategoricalDtype(categories=[
         'ADR',
         'COE',
         'PRF',
+        'UIT',
+        'CEF',
     ], ordered=True)
 
     fundamental_exchange_dtype = CategoricalDtype(categories=[
@@ -455,7 +514,8 @@ class DataManager:
             year: Integer year (e.g., 2024)
             overwrite_existing: If True, overwrites existing backup for the month.
         """
-        backup_path = DataManager.cold_path / f"master_db_month__{month}_{year}.zarr"
+        backup_path = DataManager.cold_path / f"master_db_month__{year}_{month}.zarr"
+        print(f"    Creating cold backup for {year}-{month:02d} at {backup_path} (overwrite_existing={overwrite_existing})")
 
         if os.path.exists(backup_path) and not overwrite_existing:
             return
@@ -490,6 +550,8 @@ class DataManager:
 
             ds_subset.to_zarr(backup_path, mode='w', consolidated=False)
             zarr.consolidate_metadata(str(backup_path))
+        except Exception as e:
+            print(f"Error creating cold backup for {year}-{month:02d}: {e}")
         finally:
             ds_disk.close()
 
@@ -499,8 +561,7 @@ class DataManager:
         Removes data from hot database that is older than the retention period. Also removes any idents that have all NaN data across all days(have not been in the universe for full retention period).
         """
         if not os.path.exists(DataManager.hot_path_db):
-            return
-        
+            return None
         # Suppress Zarr V3 specification warnings
         warnings.filterwarnings('ignore', category=UserWarning, module='zarr.*')
 
@@ -516,14 +577,21 @@ class DataManager:
             # Parse into datetimes using pandas which handles multiple formats
             parsed = pd.to_datetime(day_vals, errors='coerce').date
 
-            # Build mask for days to keep
+            # Build list of days to keep and removed days
             days_to_keep = [
-                d for d, p in zip(day_vals, parsed) 
+                d for d, p in zip(day_vals, parsed)
                 if (current_date - p) <= retention_delta
             ]
+            days_removed = [d for d in day_vals if d not in days_to_keep]
+
+            stats = {
+                'num_days_before': len(day_vals),
+                'num_days_after': len(days_to_keep),
+                'days_removed': days_removed,
+            }
 
             if len(days_to_keep) == len(day_vals):
-                return  # No old data to remove
+                return stats  # No old data to remove
 
             # Select only the days to keep
             ds_subset = ds_disk.sel(day=days_to_keep)
@@ -534,6 +602,9 @@ class DataManager:
             valid_idents_mask = has_5m_data | has_1d_data
             idents_to_keep = ds_subset.ident.values[valid_idents_mask.values].tolist()
 
+            idents_before = ds_disk.ident.values.tolist()
+            idents_removed = [ident for ident in idents_before if ident not in idents_to_keep]
+
             # Re-select dataset with valid idents only
             ds_subset = ds_subset.sel(ident=idents_to_keep)
 
@@ -542,8 +613,6 @@ class DataManager:
                 ds_subset[var].encoding.clear()
 
             # 2. UNIFY CHUNKS (The Fix)
-            # You can use 'auto' or specify a logical shape. 
-            # Given your 5m data is (day, time, ident, qVar):
             ds_subset = ds_subset.chunk({
                 'day': 1,        # One day per chunk is usually best for time-series access
                 'time': -1,      # All times in one chunk (288 is small)
@@ -565,6 +634,15 @@ class DataManager:
             # Atomically replace old database with new one
             shutil.rmtree(DataManager.hot_path_db)
             shutil.move(temp_db_path, DataManager.hot_path_db)
+
+            # Complete statistics
+            stats.update({
+                'num_idents_before': len(idents_before),
+                'num_idents_after': len(idents_to_keep),
+                'idents_removed': idents_removed,
+            })
+
+            return stats
         finally:
             if 'ds_disk' in locals():
                 ds_disk.close()
@@ -766,10 +844,62 @@ class DataManager:
         """
         Returns the cold backup database for the specified month and year as an xarray Dataset.
         """
-        backup_path = DataManager.cold_path / f"master_db_month__{month}_{year}.zarr"
+        backup_path = DataManager.cold_path / f"master_db_month__{year}_{month}.zarr"
 
         if not os.path.exists(backup_path):
             return None
 
         ds_disk = xr.open_zarr(backup_path, consolidated=True)
         return ds_disk
+    
+    @staticmethod
+    def emergency_hot_restore():
+        """
+        Restores the hot database from the most recent cold backups within the hot window. Use with caution as this will overwrite the current hot database.
+        """
+        backup_files = list(DataManager.cold_path.glob("master_db_month__*.zarr"))
+        if not backup_files:
+            print("No cold backups found for restore.")
+            return
+
+        # Extract month/year from filenames and sort by date
+        def extract_date(f):
+            parts = f.stem.split('__')[-1].split('_')
+            return int(parts[0]), int(parts[1])  # year, month
+
+        backup_files.sort(key=extract_date, reverse=True)
+
+        # Only restore last 7 monts then trims old data with retention trim to prevent restoring very old data
+        max_files = min(7, len(backup_files))
+        backup_files = backup_files[:max_files]
+
+        # Open backup files and combine to restore as much recent data as possible
+        combined_ds = None
+        for backup_file in backup_files:
+            try:
+                ds_backup = xr.open_zarr(backup_file, consolidated=True)
+                if combined_ds is None:
+                    combined_ds = ds_backup
+                else:
+                    combined_ds = xr.combine_by_coords([combined_ds, ds_backup], combine_attrs='override')
+            except Exception as e:
+                print(f"Error reading backup {backup_file}: {e}")
+            finally:
+                if 'ds_backup' in locals():
+                    ds_backup.close()
+
+        if combined_ds is not None:
+            temp_db_path = DataManager.hot_path / 'temp_master_db.zarr'
+
+            if os.path.exists(temp_db_path):
+                shutil.rmtree(temp_db_path)
+
+            combined_ds.to_zarr(temp_db_path, mode='w', consolidated=True)
+            zarr.consolidate_metadata(str(temp_db_path))
+
+            # Atomically replace old database with restored one
+            if os.path.exists(DataManager.hot_path_db):
+                shutil.rmtree(DataManager.hot_path_db)
+            shutil.move(temp_db_path, DataManager.hot_path_db)
+
+        DataManager.retention_trim_db()  # Trim any old data if restore failed to prevent issues with old chunks
