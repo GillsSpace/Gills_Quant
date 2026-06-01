@@ -12,6 +12,8 @@ from logic.PaperManager import PaperManager as PM
 from logic.lib_time import *
 from logic.lib_notifications import *
 
+WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+
 def main():
 
     st = tm.time()
@@ -28,20 +30,23 @@ def main():
     dm.save_qVar_data(date_str, time_str)
     #PM.execute_paper_trading(time_str)
 
-    if time_str in return_time_str_range(start='09:30', end='16:00') and day_of_week in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']:
-        try:
-            PM.execute_paper_trading(time=time_str)
-        except:
-            print(' Error Running Paper Trading Executions')
+    if time_str in return_time_str_range(start='09:30', end='16:00') and day_of_week in WEEKDAYS:
+        pass
 
     if time_str == '23:40':
         next_day = (datetime_rounded + timedelta(days=1)).strftime("%Y-%m-%d")
         UM.regen_csv('u00')
         dm.add_db_day_shell(next_day)
+        dm.retention_trim_db()
 
-        if date_str[8:10] == '01':
-            dm.make_month_cold_backup(month=date_str[5:7], year=date_str[0:4])
+    if time_str == '23:45':
+        month, year = int(date_str[5:7]), int(date_str[0:4])
+        dm.make_month_cold_backup(month=month, year=year, overwrite_existing=True)
+        prev_month= 12 if month == 1 else (month - 1)
+        prev_year = year - 1 if month == 1 else year
+        dm.make_month_cold_backup(month=prev_month, year=prev_year, overwrite_existing=True)
 
+    if time_str == '23:55':
         send_daily_notification()
 
     if time_str == '04:00':

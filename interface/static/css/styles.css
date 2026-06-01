@@ -1,0 +1,14 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+}
+
+body {
+    background-color: #1e293b;
+    color: #cbd5e1;
+    padding: 0;
+}
+
+.base-content {
+    padding: 1rem;
+}
