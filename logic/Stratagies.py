@@ -49,21 +49,31 @@ class SimpleMeanReversionStrategy(BaseStrategy):
             raise ValueError(f"Not enough historical data for lookback period of {self.lookback_period} days.")
 
         for ticker in self.universe:
+            try:
+                ticker_data = historical_data.sel(ident=ticker)
+                # Select the 'quote.mark' field for prices
+                ticker_prices = ticker_data.sel(qVar='quote.mark')
+                flat_prices = ticker_prices.values.ravel()
+                # Filter out NaNs (e.g. from weekends or after-hours when market is closed)
+                flat_prices = flat_prices[~np.isnan(flat_prices)]
+                
+                if len(flat_prices) == 0:
+                    continue
 
-            ticker_data = historical_data.sel(ident=ticker)
+                # Calculate mean and standard deviation
+                mean_price = np.mean(flat_prices)
+                std_price = np.std(flat_prices)
+                current_price = flat_prices[-1]
 
-            # Calculate mean and standard deviation
-            mean_price = ticker_data['close'].mean()
-            std_price = ticker_data['close'].std()
-            current_price = ticker_data['close'].iloc[-1]
-
-            # Generate signals based on thresholds
-            if current_price > mean_price + self.entry_threshold * std_price:
-                signals[ticker] = 'sell'
-            elif current_price < mean_price - self.entry_threshold * std_price:
-                signals[ticker] = 'buy'
-            elif abs(current_price - mean_price) < self.exit_threshold * std_price:
-                signals[ticker] = 'hold'
+                # Generate signals based on thresholds
+                if current_price > mean_price + self.entry_threshold * std_price:
+                    signals[ticker] = 'sell'
+                elif current_price < mean_price - self.entry_threshold * std_price:
+                    signals[ticker] = 'buy'
+                elif abs(current_price - mean_price) < self.exit_threshold * std_price:
+                    signals[ticker] = 'hold'
+            except Exception as e:
+                continue
         
         return signals
 

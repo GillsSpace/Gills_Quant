@@ -282,59 +282,33 @@ class DataManager:
         if os.path.exists(temp_db_path):
             shutil.rmtree(temp_db_path)
 
-        # Process existing days one at a time and write to temp
-        # This keeps memory usage constant regardless of database size
-        if not is_initial_creation:
-            for i, existing_day in enumerate(ds_disk.day.values):
-                # Create empty shell with new symbol list
-                reindexed_shell = DataManager.create_empty_day_shell(existing_day, combined_idents)
-                # Reindex existing data to align with new symbol list (fills missing with NaN)
-                reindexed_data = ds_disk.sel(day=[existing_day]).reindex({'ident': combined_idents}, fill_value=np.nan)
-                # Merge reindexed data into the shell
-                reindexed_shell.update(reindexed_data)
-
-                # CRITICAL: Rechunk to uniform sizes to prevent Zarr chunk conflicts
-                # This replaces irregular chunks created by reindex with regular chunks
-                # Chunk dims: day=full, time=full for 5m var, ident=1000 to balance memory/performance
-                reindexed_shell = reindexed_shell.chunk({
-                    'day': -1,      # Don't chunk along day dimension (always 1)
-                    'time': -1,     # Don't chunk along time dimension (always 288 for 5m)
-                    'ident': 1000,  # Chunk identifiers in groups of 1000
-                })
-
-                # Clear encoding after chunking to ensure Zarr uses our chunk specification
-                for var in reindexed_shell.variables:
-                    reindexed_shell[var].encoding.clear()
-
-                # First write creates the file, subsequent writes append
-                mode = 'w' if i == 0 else 'a-'
-                append_dim = None if i == 0 else 'day'
-
-                # Write without consolidated=True to avoid metadata conflicts during rebuild
-                # We'll consolidate once at the end for performance
-                reindexed_shell.to_zarr(temp_db_path, mode=mode, append_dim=append_dim, 
-                                    consolidated=False)
-
-            ds_disk.close()
-
-        # Add the new day to the temp database
+        # Lazy concatenation and reindexing using xarray/dask (extremely fast & constant memory)
         new_day_shell = DataManager.create_empty_day_shell(day, combined_idents)
 
-        # Clear encoding to avoid chunk conflicts with existing Zarr store
-        for var in new_day_shell.variables:
-            new_day_shell[var].encoding.clear()
+        if not is_initial_creation:
+            # Reindex the entire dataset to combined symbols lazily
+            reindexed_ds = ds_disk.reindex({'ident': combined_idents}, fill_value=np.nan)
+            combined_ds = xr.concat([reindexed_ds, new_day_shell], dim='day')
+        else:
+            combined_ds = new_day_shell
 
-        # Determine mode and append dimension for new day
-        # If this is initial creation, start fresh (mode='w')
-        # Otherwise, append to existing (mode='a-')
-        mode = 'w' if is_initial_creation else 'a-'
-        append_dim = None if is_initial_creation else 'day'
+        # Rechunk uniformly to prevent Zarr chunk conflicts
+        combined_ds = combined_ds.chunk({
+            'day': 1,
+            'time': -1,
+            'ident': 1000,
+        })
 
-        new_day_shell.to_zarr(temp_db_path, mode=mode, append_dim=append_dim, consolidated=False)
+        # Clear encoding after chunking to ensure Zarr uses our chunk specification
+        for var in combined_ds.variables:
+            combined_ds[var].encoding.clear()
 
-        # Consolidate metadata once after all writes for optimal read performance
-        # This is much faster than consolidating after each day
+        # Write the entire concatenated dataset in one operation
+        combined_ds.to_zarr(temp_db_path, mode='w', consolidated=False)
         zarr.consolidate_metadata(str(temp_db_path))
+
+        if not is_initial_creation:
+            ds_disk.close()
 
         # Atomically replace old database with new one
         if os.path.exists(db_path):
@@ -357,7 +331,10 @@ class DataManager:
         """
         Saves quote variable data for a specific day and time into master database.
         """
-        (raw_quotes_df,_) = UM.return_universe_quotes_raw(DataManager.master_universe)
+        (raw_quotes_df, error_messages) = UM.return_universe_quotes_raw(DataManager.master_universe)
+        if raw_quotes_df is None:
+            print(f"Error: Failed to retrieve quotes for universe {DataManager.master_universe}. Messages: {error_messages}")
+            return
 
         error_mask = raw_quotes_df['ident'] == 'errors'
 
@@ -382,52 +359,61 @@ class DataManager:
         quotes_df['quote.securityStatus'] = quotes_df['quote.securityStatus'].astype(DataManager.quote_securityStatus_dtype).cat.codes.replace(-1, np.nan)
         quotes_df = quotes_df[['ident'] + DataManager.quote_fields].set_index('ident')
 
-        ds_disk = xr.open_zarr(DataManager.hot_path_db, consolidated=True)
-
-        # If Day not in DB, add day shell
-        if day not in ds_disk.day.values:
-            ds_disk.close()
-            DataManager.add_db_day_shell(day)
+        ds_disk = None
+        try:
             ds_disk = xr.open_zarr(DataManager.hot_path_db, consolidated=True)
 
-        day_idx = int(np.where(ds_disk.day.values == day)[0][0])
-        time_idx = int(np.where(ds_disk.time.values == time)[0][0])
+            # If Day not in DB, add day shell
+            if day not in ds_disk.day.values:
+                ds_disk.close()
+                ds_disk = None
+                DataManager.add_db_day_shell(day)
+                ds_disk = xr.open_zarr(DataManager.hot_path_db, consolidated=True)
 
-        existing_idents = ds_disk.ident.values.tolist()
-        empty_time_shell = np.full((1,1,len(existing_idents),len(DataManager.quote_fields)),np.nan)
+            day_idx = int(np.where(ds_disk.day.values == day)[0][0])
+            time_idx = int(np.where(ds_disk.time.values == time)[0][0])
 
-        # 2. Log any Schwab API anomalies or new tickers awaiting tomorrow's shell
-        missed_idxs = [ident for ident in quotes_df.index if ident not in existing_idents]
-        if len(missed_idxs) > 0:
-            DataManager._log_error_missed_idents(missed_idxs)
+            existing_idents = ds_disk.ident.values.tolist()
+            empty_time_shell = np.full((1,1,len(existing_idents),len(DataManager.quote_fields)),np.nan)
 
-        # 3. Intersect and filter to prevent shape mismatch
-        valid_idents = quotes_df.index.intersection(existing_idents)
-        quotes_df = quotes_df.loc[valid_idents]
-        
-        target_idxs = [existing_idents.index(ident) for ident in valid_idents]
+            # 2. Log any Schwab API anomalies or new tickers awaiting tomorrow's shell
+            missed_idxs = [ident for ident in quotes_df.index if ident not in existing_idents]
+            if len(missed_idxs) > 0:
+                DataManager._log_error_missed_idents(missed_idxs)
 
-        # 4. Insert safely
-        empty_time_shell[0,0,target_idxs,:] = quotes_df.to_numpy()
-        
-        region_to_update = {
-            "day": slice(day_idx, day_idx + 1),
-            "time": slice(time_idx, time_idx + 1),
-        }
+            # 3. Intersect and filter to prevent shape mismatch
+            valid_idents = quotes_df.index.intersection(existing_idents)
+            quotes_df = quotes_df.loc[valid_idents]
+            
+            ident_to_idx = {ident: idx for idx, ident in enumerate(existing_idents)}
+            target_idxs = [ident_to_idx[ident] for ident in valid_idents]
 
-        ds_to_write = xr.Dataset({
-            '5m': (['day', 'time', 'ident', 'qVar'], empty_time_shell)
-        })
+            # 4. Insert safely
+            empty_time_shell[0,0,target_idxs,:] = quotes_df.to_numpy()
+            
+            region_to_update = {
+                "day": slice(day_idx, day_idx + 1),
+                "time": slice(time_idx, time_idx + 1),
+            }
 
-        ds_to_write.to_zarr(DataManager.hot_path_db, region=region_to_update, mode='r+')
-        ds_disk.close()
+            ds_to_write = xr.Dataset({
+                '5m': (['day', 'time', 'ident', 'qVar'], empty_time_shell)
+            })
+
+            ds_to_write.to_zarr(DataManager.hot_path_db, region=region_to_update, mode='r+')
+        finally:
+            if ds_disk is not None:
+                ds_disk.close()
 
     @staticmethod
     def save_fVar_data(day):
         """
         Saves fundamental variable data for a specific day into master database.
         """
-        (raw_fundamentals_df,_) = UM.return_universe_quotes_raw(DataManager.master_universe)
+        (raw_fundamentals_df, error_messages) = UM.return_universe_quotes_raw(DataManager.master_universe)
+        if raw_fundamentals_df is None:
+            print(f"Error: Failed to retrieve fundamentals for universe {DataManager.master_universe}. Messages: {error_messages}")
+            return
 
         error_mask = raw_fundamentals_df['ident'] == 'errors'
 
@@ -470,40 +456,46 @@ class DataManager:
 
         fundamentals_df = fundamentals_df[['ident']+DataManager.fundamental_fields].set_index('ident')
 
-        ds_disk = xr.open_zarr(DataManager.hot_path_db, consolidated=True)
-
-        # If Day not in DB, add day shell
-        if day not in ds_disk.day.values:
-            ds_disk.close()
-            DataManager.add_db_day_shell(day)
+        ds_disk = None
+        try:
             ds_disk = xr.open_zarr(DataManager.hot_path_db, consolidated=True)
 
-        day_idx = int(np.where(ds_disk.day.values == day)[0][0])
+            # If Day not in DB, add day shell
+            if day not in ds_disk.day.values:
+                ds_disk.close()
+                ds_disk = None
+                DataManager.add_db_day_shell(day)
+                ds_disk = xr.open_zarr(DataManager.hot_path_db, consolidated=True)
 
-        existing_idents = ds_disk.ident.values.tolist()
-        empty_fVar_shell = np.full((1,len(existing_idents),len(DataManager.fundamental_fields)),np.nan)
+            day_idx = int(np.where(ds_disk.day.values == day)[0][0])
 
-        missed_idxs = [ident for ident in fundamentals_df.index if ident not in existing_idents]
-        if len(missed_idxs) > 0:
-            DataManager._log_error_missed_idents(missed_idxs)
+            existing_idents = ds_disk.ident.values.tolist()
+            empty_fVar_shell = np.full((1,len(existing_idents),len(DataManager.fundamental_fields)),np.nan)
 
-        valid_idents = fundamentals_df.index.intersection(existing_idents)
-        fundamentals_df = fundamentals_df.loc[valid_idents]
+            missed_idxs = [ident for ident in fundamentals_df.index if ident not in existing_idents]
+            if len(missed_idxs) > 0:
+                DataManager._log_error_missed_idents(missed_idxs)
 
-        target_idxs = [existing_idents.index(ident) for ident in valid_idents]
+            valid_idents = fundamentals_df.index.intersection(existing_idents)
+            fundamentals_df = fundamentals_df.loc[valid_idents]
 
-        empty_fVar_shell[0,target_idxs,:] = fundamentals_df.to_numpy()
+            ident_to_idx = {ident: idx for idx, ident in enumerate(existing_idents)}
+            target_idxs = [ident_to_idx[ident] for ident in valid_idents]
 
-        region_to_update = {
-            "day": slice(day_idx, day_idx + 1),
-        }
+            empty_fVar_shell[0,target_idxs,:] = fundamentals_df.to_numpy()
 
-        ds_to_write = xr.Dataset({
-            '1d': (['day', 'ident', 'fVar'], empty_fVar_shell)
-        })
+            region_to_update = {
+                "day": slice(day_idx, day_idx + 1),
+            }
 
-        ds_to_write.to_zarr(DataManager.hot_path_db, region=region_to_update, mode='r+')
-        ds_disk.close()
+            ds_to_write = xr.Dataset({
+                '1d': (['day', 'ident', 'fVar'], empty_fVar_shell)
+            })
+
+            ds_to_write.to_zarr(DataManager.hot_path_db, region=region_to_update, mode='r+')
+        finally:
+            if ds_disk is not None:
+                ds_disk.close()
     
     @staticmethod
     def make_month_cold_backup(month, year, overwrite_existing=False):
@@ -596,13 +588,29 @@ class DataManager:
             # Select only the days to keep
             ds_subset = ds_disk.sel(day=days_to_keep)
 
-            # Identify idents with all NaN data across all days
-            has_5m_data = ~ds_subset['5m'].isnull().all(dim=['day', 'time', 'qVar'])
-            has_1d_data = ~ds_subset['1d'].isnull().all(dim=['day', 'fVar'])
-            valid_idents_mask = has_5m_data | has_1d_data
-            idents_to_keep = ds_subset.ident.values[valid_idents_mask.values].tolist()
-
             idents_before = ds_disk.ident.values.tolist()
+            
+            # CRITICAL: Always keep idents that are in the current master universe
+            current_universe = set(UM.return_universe_list(DataManager.master_universe))
+            existing_idents = set(idents_before)
+            
+            # 1.3 fix: ensure we only keep/query active stocks that actually exist in the database coordinates
+            current_universe_existing = current_universe.intersection(existing_idents)
+            
+            # 3.3 fix: exclude active stocks from the heavy NaN check
+            inactive_idents = sorted(list(existing_idents - current_universe_existing))
+            
+            if inactive_idents:
+                ds_inactive = ds_subset.sel(ident=inactive_idents)
+                has_5m_data = ~ds_inactive['5m'].isnull().all(dim=['day', 'time', 'qVar'])
+                has_1d_data = ~ds_inactive['1d'].isnull().all(dim=['day', 'fVar'])
+                valid_idents_mask = has_5m_data | has_1d_data
+                inactive_to_keep = ds_inactive.ident.values[valid_idents_mask.values].tolist()
+            else:
+                inactive_to_keep = []
+            
+            idents_to_keep = sorted(list(current_universe_existing.union(inactive_to_keep)))
+
             idents_removed = [ident for ident in idents_before if ident not in idents_to_keep]
 
             # Re-select dataset with valid idents only
@@ -616,7 +624,7 @@ class DataManager:
             ds_subset = ds_subset.chunk({
                 'day': 1,        # One day per chunk is usually best for time-series access
                 'time': -1,      # All times in one chunk (288 is small)
-                'ident': 10,     # Small groups of symbols
+                'ident': 1000,   # Keep group size at 1000 to avoid excessive files & slow I/O
                 'qVar': -1       # All variables in one chunk
             })
 
@@ -874,21 +882,23 @@ class DataManager:
         backup_files = backup_files[:max_files]
 
         # Open backup files and combine to restore as much recent data as possible
-        combined_ds = None
-        for backup_file in backup_files:
-            try:
-                ds_backup = xr.open_zarr(backup_file, consolidated=True)
-                if combined_ds is None:
-                    combined_ds = ds_backup
-                else:
-                    combined_ds = xr.combine_by_coords([combined_ds, ds_backup], combine_attrs='override')
-            except Exception as e:
-                print(f"Error reading backup {backup_file}: {e}")
-            finally:
-                if 'ds_backup' in locals():
-                    ds_backup.close()
+        opened_datasets = []
+        try:
+            for backup_file in backup_files:
+                try:
+                    ds_backup = xr.open_zarr(backup_file, consolidated=True)
+                    opened_datasets.append(ds_backup)
+                except Exception as e:
+                    print(f"Error reading backup {backup_file}: {e}")
 
-        if combined_ds is not None:
+            if not opened_datasets:
+                return
+
+            if len(opened_datasets) == 1:
+                combined_ds = opened_datasets[0]
+            else:
+                combined_ds = xr.combine_by_coords(opened_datasets, combine_attrs='override')
+
             temp_db_path = DataManager.hot_path / 'temp_master_db.zarr'
 
             if os.path.exists(temp_db_path):
@@ -901,5 +911,8 @@ class DataManager:
             if os.path.exists(DataManager.hot_path_db):
                 shutil.rmtree(DataManager.hot_path_db)
             shutil.move(temp_db_path, DataManager.hot_path_db)
+        finally:
+            for ds in opened_datasets:
+                ds.close()
 
         DataManager.retention_trim_db()  # Trim any old data if restore failed to prevent issues with old chunks

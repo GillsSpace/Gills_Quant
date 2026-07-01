@@ -71,44 +71,47 @@ class PaperManager:
     
     @staticmethod
     def execute_paper_trading(time):
-        zarr_store = xr.open_dataset(DM.hot_path_db)
-        client = PaperManager._create_alpaca_client()
+        with DM.return_hot_store() as zarr_store:
+            if zarr_store is None:
+                print("No hot store found.")
+                return
+            client = PaperManager._create_alpaca_client()
 
-        try:
-            data = client.get_open_position('AAPL')
-            position = float(data.qty)
-        except:
-            position = 0.0
+            try:
+                data = client.get_open_position('AAPL')
+                position = float(data.qty)
+            except:
+                position = 0.0
 
-        trade_in = True
-        trade_out = True
-        trade_halt = False
+            trade_in = True
+            trade_out = True
+            trade_halt = False
 
-        old_price = zarr_store['5m'].sel(ident='AAPL',qVar='quote.mark',time=return_time_shift(time,n=-3))[-1].item()
-        print(f"    Price at {return_time_shift(time,n=-3)}: {old_price}")
+            old_price = zarr_store['5m'].sel(ident='AAPL',qVar='quote.mark',time=return_time_str_shift(time,n=-3)).values[-1]
+            print(f"    Price at {return_time_str_shift(time,n=-3)}: {old_price}")
 
-        for i in range(3):
-            price = zarr_store['5m'].sel(ident='AAPL',qVar='quote.mark',time=return_time_shift(time,n=(-2+i)))[-1].item()
-            print(f"    Price at {return_time_shift(time,n=(-2+i))}: {price}")
-            if price > old_price:
-                trade_in = False
-            if price < old_price:
-                trade_out = False
-            if np.isnan(price):
-                trade_halt = True
-            old_price = price
-        
-        if trade_in and not trade_halt:
-            if position < 200:
-                order = PaperManager._gen_order('AAPL','buy',qty=2)
-                client.submit_order(order)
-                print('    Order Executed: Buy Trade Placed')
+            for i in range(3):
+                price = zarr_store['5m'].sel(ident='AAPL',qVar='quote.mark',time=return_time_str_shift(time,n=(-2+i))).values[-1]
+                print(f"    Price at {return_time_str_shift(time,n=(-2+i))}: {price}")
+                if price > old_price:
+                    trade_in = False
+                if price < old_price:
+                    trade_out = False
+                if np.isnan(price):
+                    trade_halt = True
+                old_price = price
+            
+            if trade_in and not trade_halt:
+                if position < 200:
+                    order = PaperManager._gen_order('AAPL','buy',qty=2)
+                    client.submit_order(order)
+                    print('    Order Executed: Buy Trade Placed')
 
-        if trade_out and not trade_halt:
-            if position > 1:
-                order = PaperManager._gen_order('AAPL','sell',qty=2)
-                client.submit_order(order)
-                print('    Order Executed: Sell Trade Placed')
+            if trade_out and not trade_halt:
+                if position > 1:
+                    order = PaperManager._gen_order('AAPL','sell',qty=2)
+                    client.submit_order(order)
+                    print('    Order Executed: Sell Trade Placed')
 
     @staticmethod
     def _gen_order(ident,side,notional=None,qty=None):

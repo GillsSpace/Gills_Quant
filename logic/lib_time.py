@@ -82,6 +82,7 @@ def return_day_str_range(start:str, end:str=None, n=None, exclude_weekends:bool=
                     day_range.append(end_dt.strftime("%Y-%m-%d"))
                 end_dt -= timedelta(days=1)
             day_range.reverse()
+    return day_range
 
 def return_time_str_shift(time:str, mins:int=None, n:int=None) -> str:
     """Return a time string shifted by a certain number of minutes or 5-minute intervals."""

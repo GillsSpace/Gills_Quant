@@ -25,7 +25,7 @@ def main():
     day_of_week = datetime_rounded.strftime("%A")
 
     #Always Run:
-    print(f"Running Gill Master Script for {date_str} at {time_str}")
+    print(f"Running Gill Master Script for {date_str} at {time_str}", end="")
     dm = DM()
     dm.save_qVar_data(date_str, time_str)
     #PM.execute_paper_trading(time_str)
@@ -53,7 +53,9 @@ def main():
         dm.save_fVar_data(date_str)
 
     et = tm.time()
-    total_time = round(et - st, 2)
+    total_time = et - st
+
+    print(f" ({total_time:.2f} seconds)")
 
 if __name__ == "__main__":
     main()
