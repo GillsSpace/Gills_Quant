@@ -16,17 +16,17 @@ class UniverseManager:
     universe_folder_path = Path(__file__).resolve().parent.parent / 'universes'
     log_base_path = Path(__file__).resolve().parent.parent / 'logs'
 
-    long_file_vars = ['name','sector','exchange','industry','close','volume|1W','market_cap_basic']
+    long_file_vars = ['name','sector','exchange','industry','close','average_volume_30d_calc','market_cap_basic']
 
     universe_dict = {
         "u00": {
             "in": [
-                Column('volume|1W') > 2_000,
+                Column('average_volume_30d_calc') > 400,
                 Column('type') == 'stock',
                 Column('exchange').isin(['AMEX', 'NASDAQ', 'NYSE']),
             ],
             "out": [
-                Column('volume|1W') > 500,
+                Column('average_volume_30d_calc') > 100,
                 Column('type') == 'stock',
                 Column('exchange').isin(['AMEX', 'NASDAQ', 'NYSE']),
             ]
@@ -95,6 +95,13 @@ class UniverseManager:
 
         if os.path.exists(long_csv_path):
             existing_df = pd.read_csv(long_csv_path, keep_default_na=False)
+            
+            # Align existing_df to the current schema (long_file_vars)
+            cols_to_keep = ['ticker'] + [col for col in UniverseManager.long_file_vars if col in existing_df.columns]
+            existing_df = existing_df[cols_to_keep]
+            for col in UniverseManager.long_file_vars:
+                if col not in existing_df.columns:
+                    existing_df[col] = float('nan')
             
             out_query = (
                 Query()
