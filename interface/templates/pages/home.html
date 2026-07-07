@@ -48,7 +48,7 @@
                 <h3 style="color: #94a3b8; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1rem; font-weight: 600;">Hot DB Health</h3>
                 {% if stats %}
                     <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
-                        <div style="width: 12px; height: 12px; border-radius: 50%; background-color: {{ stats.db_health_color | default('#10b981') }};"></div>
+                        <div class="status-dot {{ stats.db_health | lower | replace(' ', '-') if stats else 'healthy' }}"></div>
                         <span style="font-size: 1.75rem; font-weight: 700; color: #f1f5f9;">{{ stats.db_health }}</span>
                     </div>
                     <div style="font-size: 0.95rem; color: #cbd5e1; margin-bottom: 1rem;">
@@ -92,6 +92,21 @@
     </div>
     
     <style>
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        .status-dot.healthy {
+            background-color: #10b981;
+        }
+        .status-dot.out-of-date {
+            background-color: #f59e0b;
+        }
+        .status-dot.empty-database {
+            background-color: #ef4444;
+        }
+
         .dashboard-card:hover {
             transform: translateY(-2px);
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1) !important;
