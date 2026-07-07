@@ -54,6 +54,9 @@ class UniverseManager:
         df['name'] = df['name'].str.replace(r'/P([^/]*)', r'/PR\1', regex=True)  # */P* -> */PR*
         df['name'] = df['name'].str.replace(r'\.', '/', regex=True)  # *.* -> */*
 
+        # Sort alphabetically by name:
+        df = df.sort_values(by='name')
+
         # Save CSV:
         df.to_csv(UniverseManager.universe_folder_path / f"{universe_code}_long.csv", index=False)
         df['name'].to_csv(UniverseManager.universe_folder_path / f"{universe_code}.csv", index=False)
@@ -135,6 +138,7 @@ class UniverseManager:
         
         if not combined_df.empty:
             combined_df = combined_df.drop_duplicates(subset=['name'], keep='first')
+            combined_df = combined_df.sort_values(by='name')
         
         if not combined_df.empty:
             combined_df.to_csv(long_csv_path, index=False)

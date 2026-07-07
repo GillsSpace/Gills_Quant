@@ -7,6 +7,7 @@ import numpy as np
 import xarray as xr
 import pandas as pd
 
+import json
 from pathlib import Path
 from pandas.api.types import CategoricalDtype
 from datetime import datetime, timedelta, time, date
@@ -142,6 +143,8 @@ class DataManager:
         'fundamental.nextDivPayDate',
         'fundamental.peRatio',
         'quote.closePrice',
+        'corporate.splitRatio',
+        'corporate.divAmount',
     ]
 
     quote_securityStatus_dtype = CategoricalDtype(categories=[
@@ -268,16 +271,19 @@ class DataManager:
         old_set = set(existing_idents)
         new_set = set(idents_for_day)
 
-        if old_set == new_set and not is_initial_creation:
+        if new_set.issubset(old_set) and not is_initial_creation:
             ds_shell = DataManager.create_empty_day_shell(day,existing_idents)
             # Clear encoding to avoid chunk conflicts with existing Zarr store
             for var in ds_shell.variables:
                 ds_shell[var].encoding.clear()
             ds_shell.to_zarr(db_path, mode='a-', append_dim='day')
+            zarr.consolidate_metadata(str(db_path))
             ds_disk.close()
             return
         
-        combined_idents = sorted(list(old_set.union(new_set)))
+        # Keep existing order of idents in database, append new ones at the end (sorted alphabetically)
+        new_idents = sorted(list(new_set - old_set))
+        combined_idents = existing_idents + new_idents
 
         if os.path.exists(temp_db_path):
             shutil.rmtree(temp_db_path)
@@ -507,12 +513,11 @@ class DataManager:
             overwrite_existing: If True, overwrites existing backup for the month.
         """
         backup_path = DataManager.cold_path / f"master_db_month__{year}_{month}.zarr"
+        temp_backup_path = DataManager.cold_path / f"temp_master_db_month__{year}_{month}.zarr"
         print(f"    Creating cold backup for {year}-{month:02d} at {backup_path} (overwrite_existing={overwrite_existing})")
 
         if os.path.exists(backup_path) and not overwrite_existing:
             return
-        if os.path.exists(backup_path):
-            shutil.rmtree(backup_path)
         if not os.path.exists(DataManager.hot_path_db):
             return
 
@@ -530,7 +535,6 @@ class DataManager:
             days_to_keep = [d for d, m in zip(day_vals, mask) if m]
 
             if not days_to_keep:
-                ds_disk.close()
                 return
 
             # Select only the days for the requested month/year
@@ -540,12 +544,26 @@ class DataManager:
             for var in ds_subset.variables:
                 ds_subset[var].encoding.clear()
 
-            ds_subset.to_zarr(backup_path, mode='w', consolidated=False)
-            zarr.consolidate_metadata(str(backup_path))
+            # Clean up any stale temp folder if it exists
+            if os.path.exists(temp_backup_path):
+                shutil.rmtree(temp_backup_path)
+
+            # Write to temp path first
+            ds_subset.to_zarr(temp_backup_path, mode='w', consolidated=False)
+            zarr.consolidate_metadata(str(temp_backup_path))
+
+            # Swap atomically
+            if os.path.exists(backup_path):
+                shutil.rmtree(backup_path)
+            shutil.move(temp_backup_path, backup_path)
+
         except Exception as e:
             print(f"Error creating cold backup for {year}-{month:02d}: {e}")
+            if os.path.exists(temp_backup_path):
+                shutil.rmtree(temp_backup_path)
         finally:
             ds_disk.close()
+
 
     @staticmethod
     def retention_trim_db():
@@ -609,7 +627,9 @@ class DataManager:
             else:
                 inactive_to_keep = []
             
-            idents_to_keep = sorted(list(current_universe_existing.union(inactive_to_keep)))
+            # Preserve original order of idents in the database to prevent chunk fragmentation
+            set_to_keep = current_universe_existing.union(inactive_to_keep)
+            idents_to_keep = [ident for ident in idents_before if ident in set_to_keep]
 
             idents_removed = [ident for ident in idents_before if ident not in idents_to_keep]
 
@@ -916,3 +936,123 @@ class DataManager:
                 ds.close()
 
         DataManager.retention_trim_db()  # Trim any old data if restore failed to prevent issues with old chunks
+
+    @staticmethod
+    def save_corporate_actions_for_day(day, use_alpaca=True):
+        """
+        Fetches corporate actions (splits and dividends) from Alpaca or local fallback
+        and writes them into the Zarr database for the given day.
+        """
+        warnings.filterwarnings('ignore', category=UserWarning, module='zarr.*')
+
+        ds_disk = None
+        try:
+            ds_disk = xr.open_zarr(DataManager.hot_path_db, consolidated=True)
+            if day not in ds_disk.day.values:
+                print(f"Day {day} not found in database. Cannot write corporate actions.")
+                return
+
+            day_idx = int(np.where(ds_disk.day.values == day)[0][0])
+            existing_idents = ds_disk.ident.values.tolist()
+            
+            # Read current values (shape: 1 x len(idents) x len(fVar))
+            current_fVar_slice = ds_disk['1d'].sel(day=day).values.copy()
+            
+            # Indices of the corporate action columns
+            split_col_idx = DataManager.fundamental_fields.index('corporate.splitRatio')
+            div_col_idx = DataManager.fundamental_fields.index('corporate.divAmount')
+            
+            splits_map = {}
+            divs_map = {}
+            
+            from logic.lib_adjustments import HAS_ALPACA
+            if use_alpaca and HAS_ALPACA:
+                try:
+                    from logic.lib_adjustments import get_alpaca_corporate_actions
+                    from alpaca.data.historical.corporate_actions import CorporateActionsClient
+                    from alpaca.data.requests import CorporateActionsRequest
+                    
+                    creds_file = Path(__file__).resolve().parent.parent / 'secrets' / 'keys.json'
+                    if creds_file.exists():
+                        with open(creds_file, 'r') as f:
+                            keys = json.load(f)
+                        alpaca_key = keys['alpaca']['key']
+                        alpaca_secret = keys['alpaca']['secret']
+                        
+                        client = CorporateActionsClient(alpaca_key, alpaca_secret, raw_data=True)
+                        batch_size = 100
+                        for i in range(0, len(existing_idents), batch_size):
+                            batch = existing_idents[i:i+batch_size]
+                            request = CorporateActionsRequest(
+                                symbols=batch,
+                                start=day,
+                                end=day
+                            )
+                            raw_data = client.get_corporate_actions(request)
+                            if isinstance(raw_data, dict):
+                                # Process dividends
+                                for div in raw_data.get('cash_dividends', []):
+                                    if div.get('ex_date') == day:
+                                        divs_map[div.get('symbol')] = float(div.get('rate', 0))
+                                # Process forward splits
+                                for spl in raw_data.get('forward_splits', []):
+                                    if spl.get('ex_date') == day:
+                                        new_rate = float(spl.get('new_rate', 1))
+                                        old_rate = float(spl.get('old_rate', 1))
+                                        splits_map[spl.get('symbol')] = new_rate / old_rate if old_rate != 0 else 1.0
+                                # Process reverse splits
+                                for spl in raw_data.get('reverse_splits', []):
+                                    if spl.get('ex_date') == day:
+                                        new_rate = float(spl.get('new_rate', 1))
+                                        old_rate = float(spl.get('old_rate', 1))
+                                        splits_map[spl.get('symbol')] = new_rate / old_rate if old_rate != 0 else 1.0
+                except Exception as e:
+                    print(f"Alpaca query failed for {day}: {e}")
+
+            div_ex_col_idx = DataManager.fundamental_fields.index('fundamental.divExDate')
+            div_amt_col_idx = DataManager.fundamental_fields.index('fundamental.divPayAmount')
+            
+            for idx, symbol in enumerate(existing_idents):
+                has_action = False
+                if symbol in splits_map:
+                    current_fVar_slice[idx, split_col_idx] = splits_map[symbol]
+                    has_action = True
+                else:
+                    current_fVar_slice[idx, split_col_idx] = np.nan
+                    
+                if symbol in divs_map:
+                    current_fVar_slice[idx, div_col_idx] = divs_map[symbol]
+                    has_action = True
+                else:
+                    # Fallback to local Schwab data:
+                    try:
+                        ex_date_num = current_fVar_slice[idx, div_ex_col_idx]
+                        if not np.isnan(ex_date_num):
+                            ex_date_int = int(ex_date_num)
+                            day_int = int(day.replace('-', ''))
+                            if ex_date_int == day_int:
+                                amount = current_fVar_slice[idx, div_amt_col_idx]
+                                if not np.isnan(amount) and amount > 0:
+                                    current_fVar_slice[idx, div_col_idx] = amount
+                                    has_action = True
+                    except:
+                        pass
+                    
+                    if not has_action:
+                        current_fVar_slice[idx, div_col_idx] = np.nan
+
+            region_to_update = {
+                "day": slice(day_idx, day_idx + 1),
+            }
+
+            # Reshape slice to match (1, len(idents), len(fVar))
+            empty_fVar_shell = np.expand_dims(current_fVar_slice, axis=0)
+
+            ds_to_write = xr.Dataset({
+                '1d': (['day', 'ident', 'fVar'], empty_fVar_shell)
+            })
+
+            ds_to_write.to_zarr(DataManager.hot_path_db, region=region_to_update, mode='r+')
+        finally:
+            if ds_disk is not None:
+                ds_disk.close()

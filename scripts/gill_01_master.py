@@ -51,6 +51,7 @@ def main():
 
     if time_str == '04:00':
         dm.save_fVar_data(date_str)
+        dm.save_corporate_actions_for_day(date_str)
 
     et = tm.time()
     total_time = et - st

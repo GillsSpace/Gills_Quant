@@ -1,0 +1,492 @@
+{% extends "base.html" %}
+
+{% block title %}Database{% endblock %}
+
+{% block content %}
+<!-- Load Plotly library -->
+<script src="https://cdn.plot.ly/plotly-2.24.1.min.js" charset="utf-8"></script>
+
+<div style="font-family: Georgia, Garamond, 'Times New Roman', Times, serif; max-width: 1200px; margin: 0 auto; padding: 1.5rem 0;">
+    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem;">
+        <h1 style="font-size: 2.5rem; font-weight: bold; color: #f8fafc; font-style: normal;">Database Explorer</h1>
+        <span style="font-family: system-ui, -apple-system, sans-serif; font-size: 0.9rem; color: #94a3b8; background-color: #1e293b; padding: 0.25rem 0.75rem; border-radius: 20px; border: 1px solid #334155;">
+            Zarr Store
+        </span>
+    </div>
+    <p style="color: #94a3b8; font-size: 1.15rem; margin-bottom: 2rem; font-style: italic; line-height: 1.6;">
+        Explore stored timeseries data, active universe tickers, and structural variables.
+    </p>
+
+    <!-- Tab Buttons -->
+    <div style="font-family: system-ui, -apple-system, sans-serif; display: flex; gap: 0.5rem; border-bottom: 2px solid #334155; padding-bottom: 0.5rem; margin-bottom: 2rem;">
+        <button onclick="switchTab('overview')" id="tab-overview" class="tab-btn active-tab">Overview</button>
+        <button onclick="switchTab('daily-stats')" id="tab-daily-stats" class="tab-btn">Daily Stats</button>
+        <button onclick="switchTab('tickers')" id="tab-tickers" class="tab-btn">Tickers ({{ db_info.num_idents if db_info else 0 }})</button>
+        <button onclick="switchTab('fields')" id="tab-fields" class="tab-btn">Variables</button>
+    </div>
+
+    <!-- Tab Contents -->
+    <div style="font-family: system-ui, -apple-system, sans-serif;">
+        
+        <!-- OVERVIEW TAB -->
+        <div id="content-overview" class="tab-content">
+            {% if db_info %}
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+                
+                <!-- CARD: DB SIZE & LOCATION -->
+                <div class="db-card">
+                    <h3 class="card-title">Storage Specs</h3>
+                    <div style="font-size: 2.2rem; font-weight: 700; color: #f1f5f9; margin-bottom: 0.5rem;">
+                        {{ db_info.db_size_gb }} GB
+                    </div>
+                    <div style="font-size: 0.95rem; color: #cbd5e1; margin-bottom: 1.25rem; word-break: break-all;">
+                        Path: <span style="font-family: monospace; color: #f8fafc; background-color: #0f172a; padding: 0.1rem 0.3rem; border-radius: 4px;">{{ db_info.path }}</span>
+                    </div>
+                    <div class="card-stats">
+                        <div class="stat-row">
+                            <span>Format</span>
+                            <span class="stat-val">Zarr (xarray consolidated)</span>
+                        </div>
+                        <div class="stat-row">
+                            <span>Retention Setting</span>
+                            <span class="stat-val">{{ db_info.retention }} Days</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CARD: DIMENSIONS -->
+                <div class="db-card">
+                    <h3 class="card-title">Dataset Structure</h3>
+                    <div style="font-size: 2.2rem; font-weight: 700; color: #f1f5f9; margin-bottom: 0.5rem;">
+                        Two Datasets
+                    </div>
+                    <div style="font-size: 0.95rem; color: #cbd5e1; margin-bottom: 1.25rem;">
+                        Multi-dimensional coordinates: <span style="font-weight: 600; color: #f8fafc;">day, time, ident, qVar, fVar</span>
+                    </div>
+                    <div class="card-stats">
+                        <div class="stat-row" style="border-bottom: 1px dashed #334155; padding-bottom: 0.5rem; margin-bottom: 0.5rem;">
+                            <div style="display: flex; flex-direction: column;">
+                                <span style="font-weight: 700; color: #38bdf8; font-size: 0.9rem;">5m (Quote Data) — 4D Array</span>
+                                <span style="font-size: 0.8rem; color: #94a3b8; margin-top: 0.1rem;">Dimensions: [day, time, ident, qVar]</span>
+                            </div>
+                            <span class="stat-val">{{ db_info.num_days }}d × {{ db_info.num_idents }}s × {{ db_info.num_qvars }}v</span>
+                        </div>
+                        <div class="stat-row">
+                            <div style="display: flex; flex-direction: column;">
+                                <span style="font-weight: 700; color: #a855f7; font-size: 0.9rem;">1d (Fundamental Data) — 3D Array</span>
+                                <span style="font-size: 0.8rem; color: #94a3b8; margin-top: 0.1rem;">Dimensions: [day, ident, fVar]</span>
+                            </div>
+                            <span class="stat-val">{{ db_info.num_days }}d × {{ db_info.num_idents }}s × {{ db_info.num_fvars }}v</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            {% else %}
+            <div class="error-box">
+                <h3 style="margin-bottom: 0.5rem;">Zarr Store Offline</h3>
+                <p>Could not connect to the database. Ensure master_db.zarr is populated and accessible.</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- DAILY STATS TAB -->
+        <div id="content-daily-stats" class="tab-content" style="display: none;">
+            {% if db_info and db_info.table_data %}
+            <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                
+                <!-- Plotly Chart Container -->
+                <div style="background-color: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 1.5rem;">
+                    <h3 style="color: #f1f5f9; margin-bottom: 1rem;">Active Tickers Count Per Day</h3>
+                    <div id="plotly-chart" style="width: 100%; height: 350px;"></div>
+                </div>
+
+                <!-- Daily Stats Table -->
+                <div style="background-color: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 1.5rem;">
+                    <h3 style="color: #f1f5f9; margin-bottom: 1rem;">Daily Records Summary</h3>
+                    <div style="max-height: 400px; overflow-y: auto;">
+                        <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                            <thead>
+                                <tr style="border-bottom: 2px solid #334155; color: #94a3b8; font-size: 0.9rem;">
+                                    <th style="padding: 0.75rem 1rem;">Date</th>
+                                    <th style="padding: 0.75rem 1rem;">Active Universe Tickers</th>
+                                    <th style="padding: 0.75rem 1rem;">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in db_info.table_data %}
+                                <tr class="table-row">
+                                    <td style="padding: 0.75rem 1rem; color: #e2e8f0; font-family: monospace; font-size: 0.95rem;">{{ row.day }}</td>
+                                    <td style="padding: 0.75rem 1rem; color: #38bdf8; font-weight: 600;">{{ row.count }}</td>
+                                    <td style="padding: 0.75rem 1rem;">
+                                        {% if row.count > 0 %}
+                                        <span style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; color: #10b981; background-color: rgba(16, 185, 129, 0.1); padding: 0.2rem 0.5rem; border-radius: 20px;">
+                                            <span style="width: 6px; height: 6px; border-radius: 50%; background-color: #10b981;"></span>
+                                            Populated
+                                        </span>
+                                        {% else %}
+                                        <span style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; color: #ef4444; background-color: rgba(239, 68, 68, 0.1); padding: 0.2rem 0.5rem; border-radius: 20px;">
+                                            <span style="width: 6px; height: 6px; border-radius: 50%; background-color: #ef4444;"></span>
+                                            Empty
+                                        </span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+            </div>
+            {% else %}
+            <div class="empty-box">No days recorded in database.</div>
+            {% endif %}
+        </div>
+
+        <!-- TICKERS TAB -->
+        <div id="content-tickers" class="tab-content" style="display: none;">
+            {% if db_info and db_info.idents %}
+            <div style="background-color: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 1.5rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+                    <h3 style="color: #f1f5f9;">Active Ticker Universe</h3>
+                    <input type="text" id="ticker-search" oninput="filterTickers()" placeholder="Search symbols (e.g. AAPL)..." class="search-input">
+                </div>
+                <div id="tickers-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 0.5rem; max-height: 500px; overflow-y: auto; padding-right: 0.5rem;">
+                    {% for ticker in db_info.idents %}
+                    <div class="ticker-tag" data-symbol="{{ ticker }}">
+                        {{ ticker }}
+                    </div>
+                    {% endfor %}
+                </div>
+                <div id="ticker-no-results" style="display: none; text-align: center; color: #94a3b8; padding: 2rem 0;">
+                    No matching tickers found.
+                </div>
+            </div>
+            {% else %}
+            <div class="empty-box">No tickers recorded in database.</div>
+            {% endif %}
+        </div>
+
+        <!-- FIELDS TAB -->
+        <div id="content-fields" class="tab-content" style="display: none;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; flex-wrap: wrap;">
+                
+                <!-- Quote Variables -->
+                <div style="background-color: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 1.5rem;">
+                    <h3 style="color: #f1f5f9; margin-bottom: 1rem; border-bottom: 1px solid #334155; padding-bottom: 0.5rem; display: flex; justify-content: space-between;">
+                        <span>Quote Variables</span>
+                        <span style="font-size: 0.9rem; color: #94a3b8;">{{ db_info.num_qvars if db_info else 0 }} variables</span>
+                    </h3>
+                    {% if db_info and db_info.qvars %}
+                    <div style="display: flex; flex-direction: column; gap: 0.4rem; max-height: 500px; overflow-y: auto;">
+                        {% for var in db_info.qvars %}
+                        <div class="variable-item">
+                            <span class="var-badge qvar-badge">quote</span>
+                            <span class="var-name">{{ var }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="empty-box">No quote variables.</div>
+                    {% endif %}
+                </div>
+
+                <!-- Fundamental Variables -->
+                <div style="background-color: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 1.5rem;">
+                    <h3 style="color: #f1f5f9; margin-bottom: 1rem; border-bottom: 1px solid #334155; padding-bottom: 0.5rem; display: flex; justify-content: space-between;">
+                        <span>Fundamental Variables</span>
+                        <span style="font-size: 0.9rem; color: #94a3b8;">{{ db_info.num_fvars if db_info else 0 }} variables</span>
+                    </h3>
+                    {% if db_info and db_info.fvars %}
+                    <div style="display: flex; flex-direction: column; gap: 0.4rem; max-height: 500px; overflow-y: auto;">
+                        {% for var in db_info.fvars %}
+                        <div class="variable-item">
+                            <span class="var-badge fvar-badge">fundamental</span>
+                            <span class="var-name">{{ var }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="empty-box">No fundamental variables.</div>
+                    {% endif %}
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<style>
+    /* Tab Buttons Styling */
+    .tab-btn {
+        background: transparent;
+        border: none;
+        color: #94a3b8;
+        padding: 0.75rem 1.25rem;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border-radius: 6px;
+    }
+    .tab-btn:hover {
+        color: #f1f5f9;
+        background-color: #0f172a;
+    }
+    .tab-btn.active-tab {
+        color: #38bdf8;
+        background-color: #0f172a;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Cards */
+    .db-card {
+        background-color: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+    }
+    .db-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1);
+        border-color: #475569;
+    }
+    .card-title {
+        color: #94a3b8;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 1rem;
+        font-weight: 600;
+    }
+    .card-stats {
+        border-top: 1px solid #334155;
+        padding-top: 0.75rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        font-size: 0.85rem;
+        color: #94a3b8;
+    }
+    .stat-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .stat-val {
+        color: #cbd5e1;
+        font-weight: 600;
+    }
+
+    /* Badges / Tags */
+    .ticker-tag {
+        background-color: #0f172a;
+        border: 1px solid #334155;
+        color: #e2e8f0;
+        padding: 0.4rem 0.6rem;
+        border-radius: 4px;
+        text-align: center;
+        font-size: 0.85rem;
+        font-weight: 600;
+        transition: all 0.2s ease;
+    }
+    .ticker-tag:hover {
+        border-color: #38bdf8;
+        color: #38bdf8;
+        transform: scale(1.05);
+    }
+
+    /* Inputs */
+    .search-input {
+        background-color: #0f172a;
+        border: 1px solid #334155;
+        color: #f1f5f9;
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        outline: none;
+        width: 250px;
+        font-size: 0.9rem;
+        transition: border-color 0.2s;
+    }
+    .search-input:focus {
+        border-color: #38bdf8;
+    }
+
+    /* Variables view */
+    .variable-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        background-color: #0f172a;
+        padding: 0.5rem 0.75rem;
+        border-radius: 6px;
+        border: 1px solid #334155;
+    }
+    .var-badge {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        font-weight: bold;
+        padding: 0.15rem 0.4rem;
+        border-radius: 4px;
+        letter-spacing: 0.05em;
+    }
+    .qvar-badge {
+        background-color: rgba(56, 189, 248, 0.15);
+        color: #38bdf8;
+        border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+    .fvar-badge {
+        background-color: rgba(168, 85, 247, 0.15);
+        color: #a855f7;
+        border: 1px solid rgba(168, 85, 247, 0.3);
+    }
+    .var-name {
+        font-family: monospace;
+        color: #e2e8f0;
+        font-size: 0.9rem;
+    }
+
+    /* Table styles */
+    .table-row {
+        border-bottom: 1px solid #334155;
+        transition: background-color 0.2s;
+    }
+    .table-row:hover {
+        background-color: #0f172a;
+    }
+
+    /* Scrollbars */
+    ::-webkit-scrollbar {
+        width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+        background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+        background: #334155;
+        border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+        background: #475569;
+    }
+
+    /* Fallback boxes */
+    .empty-box, .error-box {
+        background-color: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 12px;
+        padding: 2rem;
+        text-align: center;
+        color: #94a3b8;
+    }
+    .error-box {
+        border-color: #ef4444;
+        color: #f87171;
+    }
+</style>
+
+<script>
+    // Flag to track whether the Plotly chart has been rendered
+    let chartRendered = false;
+
+    function switchTab(tabId) {
+        // Hide all contents
+        const contents = document.querySelectorAll('.tab-content');
+        contents.forEach(el => el.style.display = 'none');
+        
+        // Deactivate all tab buttons
+        const buttons = document.querySelectorAll('.tab-btn');
+        buttons.forEach(el => el.classList.remove('active-tab'));
+        
+        // Show active content & button
+        document.getElementById('content-' + tabId).style.display = 'block';
+        document.getElementById('tab-' + tabId).classList.add('active-tab');
+
+        // Render chart if switching to daily-stats tab and not yet rendered
+        if (tabId === 'daily-stats' && !chartRendered) {
+            renderPlotlyChart();
+        }
+    }
+
+    function renderPlotlyChart() {
+        const chartDiv = document.getElementById('plotly-chart');
+        if (!chartDiv) return;
+
+        // Parse JSON data sent from Flask
+        const days = {% if db_info and db_info.days_json %}{{ db_info.days_json|safe }}{% else %}[]{% endif %};
+        const counts = {% if db_info and db_info.counts_json %}{{ db_info.counts_json|safe }}{% else %}[]{% endif %};
+
+        const trace = {
+            x: days,
+            y: counts,
+            type: 'bar',
+            marker: {
+                color: '#38bdf8',
+                line: {
+                    color: '#0ea5e9',
+                    width: 1
+                }
+            },
+            hovertemplate: '<b>Date:</b> %{x}<br><b>Active Tickers:</b> %{y}<extra></extra>'
+        };
+
+        const layout = {
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            xaxis: {
+                gridcolor: '#334155',
+                tickcolor: '#334155',
+                font: { color: '#94a3b8', family: 'system-ui, sans-serif' },
+                type: 'category'
+            },
+            yaxis: {
+                gridcolor: '#334155',
+                tickcolor: '#334155',
+                font: { color: '#94a3b8', family: 'system-ui, sans-serif' },
+                title: {
+                    text: 'Ticker Count',
+                    font: { color: '#94a3b8', size: 12 }
+                }
+            },
+            margin: { t: 10, r: 10, b: 50, l: 50 },
+            hovermode: 'closest',
+            bargap: 0.2
+        };
+
+        const config = {
+            responsive: true,
+            displayModeBar: false
+        };
+
+        Plotly.newPlot('plotly-chart', [trace], layout, config);
+        chartRendered = true;
+    }
+
+    function filterTickers() {
+        const query = document.getElementById('ticker-search').value.toUpperCase().trim();
+        const tags = document.querySelectorAll('.ticker-tag');
+        let anyVisible = false;
+        
+        tags.forEach(tag => {
+            const symbol = tag.getAttribute('data-symbol');
+            if (symbol.includes(query)) {
+                tag.style.display = 'block';
+                anyVisible = true;
+            } else {
+                tag.style.display = 'none';
+            }
+        });
+        
+        const noResults = document.getElementById('ticker-no-results');
+        if (anyVisible) {
+            noResults.style.display = 'none';
+        } else {
+            noResults.style.display = 'block';
+        }
+    }
+</script>
+{% endblock %}

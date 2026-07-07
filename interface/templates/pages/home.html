@@ -3,7 +3,99 @@
 {% block title %}Home{% endblock %}
 
 {% block content %}
-    <h1>Hello, Wills</h1>
-    <p>This is the home page for the Gills Quant Control interface.</p>
-    <p>Tokens: {{ tokens }}</p>
+    <div style="font-family: Georgia, Garamond, 'Times New Roman', Times, serif; max-width: 1200px; margin: 0 auto; padding: 1.5rem 0;">
+        <h1 style="font-size: 2.5rem; font-weight: bold; margin-bottom: 0.5rem; color: #f8fafc; font-style: normal;">Hello, Wills</h1>
+        <p style="color: #94a3b8; font-size: 1.15rem; margin-bottom: 2rem; font-style: italic; line-height: 1.6;">Welcome to the Gills Quant Control dashboard. Below is the operational status of your local database and API connection.</p>
+        
+        <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem;">
+            
+            <!-- CARD 1: LAST DATA PULL -->
+            <div style="background-color: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); transition: transform 0.2s, box-shadow 0.2s;" class="dashboard-card">
+                <h3 style="color: #94a3b8; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1rem; font-weight: 600;">Last Data Pull</h3>
+                {% if stats %}
+                    <div style="font-size: 2.2rem; font-weight: 700; color: #f1f5f9; margin-bottom: 0.5rem;">
+                        {{ stats.last_pull_time }}
+                    </div>
+                    <div style="font-size: 0.95rem; color: #cbd5e1; margin-bottom: 1.25rem;">
+                        Date: <span style="font-weight: 600; color: #f8fafc;">{{ stats.last_pull_day }}</span>
+                    </div>
+                    
+                    <div style="border-top: 1px solid #334155; padding-top: 0.75rem; display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.85rem; color: #94a3b8;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Symbols Updated</span>
+                            <span style="color: #cbd5e1; font-weight: 600;">{{ stats.last_pull_tickers }} / {{ stats.num_idents }}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Populated Metrics</span>
+                            <span style="color: #cbd5e1; font-weight: 600;">{{ stats.last_pull_vars }} / {{ stats.num_qVars }}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Top Gainer</span>
+                            <span style="color: #10b981; font-weight: 600;">{{ stats.top_gainer_symbol }} (+{{ stats.top_gainer_val }}%)</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Most Active Ticker</span>
+                            <span style="color: #38bdf8; font-weight: 600;">{{ stats.most_active_symbol }} ({{ stats.most_active_vol }})</span>
+                        </div>
+                    </div>
+                {% else %}
+                    <p style="color: #ef4444; font-weight: 500;">No data pull info available.</p>
+                {% endif %}
+            </div>
+
+            <!-- CARD 2: HOT DATABASE HEALTH -->
+            <div style="background-color: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); transition: transform 0.2s, box-shadow 0.2s;" class="dashboard-card">
+                <h3 style="color: #94a3b8; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1rem; font-weight: 600;">Hot DB Health</h3>
+                {% if stats %}
+                    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
+                        <div style="width: 12px; height: 12px; border-radius: 50%; background-color: {{ stats.db_health_color | default('#10b981') }};"></div>
+                        <span style="font-size: 1.75rem; font-weight: 700; color: #f1f5f9;">{{ stats.db_health }}</span>
+                    </div>
+                    <div style="font-size: 0.95rem; color: #cbd5e1; margin-bottom: 1rem;">
+                        Size on Disk: <span style="font-weight: 600; color: #f8fafc;">{{ stats.db_size_mb }} MB</span>
+                    </div>
+                    <div style="border-top: 1px solid #334155; padding-top: 0.75rem; display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.85rem; color: #94a3b8;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Active Window</span>
+                            <span style="color: #cbd5e1; font-weight: 500;">{{ stats.num_days }} / {{ stats.retention_days }} Days Retention</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Quote Variables</span>
+                            <span style="color: #cbd5e1; font-weight: 500;">{{ stats.num_qVars }} Vars</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Fundamental Variables</span>
+                            <span style="color: #cbd5e1; font-weight: 500;">{{ stats.num_fVars }} Vars</span>
+                        </div>
+                    </div>
+                {% else %}
+                    <p style="color: #ef4444; font-weight: 500;">Database details unavailable.</p>
+                {% endif %}
+            </div>
+
+            <!-- CARD 3: CONNECTION STATUS -->
+            <div style="background-color: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); transition: transform 0.2s, box-shadow 0.2s;" class="dashboard-card">
+                <h3 style="color: #94a3b8; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1rem; font-weight: 600;">API Connection</h3>
+                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
+                    <div style="width: 12px; height: 12px; border-radius: 50%; background-color: #10b981;"></div>
+                    <span style="font-size: 1.75rem; font-weight: 700; color: #f1f5f9;">Active</span>
+                </div>
+                <div style="font-size: 0.95rem; color: #cbd5e1; margin-bottom: 1rem; line-height: 1.5;">
+                    Schwab API credentials loaded.
+                </div>
+                <div style="border-top: 1px solid #334155; padding-top: 1rem; font-size: 0.85rem; color: #94a3b8;">
+                    <p>{{ tokens }}</p>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+    
+    <style>
+        .dashboard-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1) !important;
+            border-color: #475569 !important;
+        }
+    </style>
 {% endblock %}
