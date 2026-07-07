@@ -31,27 +31,47 @@ def home():
 import json
 import time
 
-_daily_stats_cache = {
-    'days': None,
-    'counts': None,
-    'timestamp': 0
-}
-
 def get_daily_stats(ds):
-    current_days = [str(d) for d in ds.day.values]
-    now = time.time()
-    if _daily_stats_cache['days'] == current_days and (now - _daily_stats_cache['timestamp']) < 300:
-        return _daily_stats_cache['counts']
-        
-    # Calculate count of active tickers (any non-NaN fundamental variable) for each day
-    counts = (~ds['1d'].isnull()).any(dim='fVar').sum(dim='ident').values
-    counts_list = [int(c) for c in counts]
+    import os
     
-    _daily_stats_cache['days'] = current_days
-    _daily_stats_cache['counts'] = counts_list
-    _daily_stats_cache['timestamp'] = now
+    cache_path = os.path.join(os.path.dirname(__file__), 'daily_stats_cache.json')
+    cache = {}
+    if os.path.exists(cache_path):
+        try:
+            with open(cache_path, 'r') as f:
+                cache = json.load(f)
+        except Exception as e:
+            print(f"Error reading cache: {e}")
+            
+    days = [str(d) for d in ds.day.values]
+    missing_days = [d for d in days if d not in cache]
     
-    return counts_list
+    if missing_days:
+        if len(missing_days) > 10:
+            # Batch calculate all days to optimize chunk loading
+            counts = (~ds['5m'].sel(qVar='quote.lastPrice').isnull()).any(dim='time').sum(dim='ident').values
+            for d, c in zip(days, counts):
+                cache[d] = int(c)
+        else:
+            # Calculate individually for new days (takes ~0.2s per day)
+            for day in missing_days:
+                try:
+                    day_slice = ds['5m'].sel(day=day)
+                    count = int((~day_slice.sel(qVar='quote.lastPrice').isnull()).any(dim='time').sum(dim='ident').values)
+                    cache[day] = count
+                except Exception as e:
+                    print(f"Error calculating stats for {day}: {e}")
+                    cache[day] = 0
+                    
+        # Save updated cache
+        try:
+            with open(cache_path, 'w') as f:
+                json.dump(cache, f)
+        except Exception as e:
+            print(f"Error writing cache: {e}")
+            
+    return [cache.get(d, 0) for d in days]
+
 
 
 @bp.route('/database')
