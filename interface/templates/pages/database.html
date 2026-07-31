@@ -95,10 +95,22 @@
             {% if db_info and db_info.table_data %}
             <div style="display: flex; flex-direction: column; gap: 1.5rem;">
                 
-                <!-- Plotly Chart Container -->
+                <!-- Plotly Chart Container: Closes & Marks -->
                 <div style="background-color: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 1.5rem;">
-                    <h3 style="color: #f1f5f9; margin-bottom: 1rem;">Active Tickers Count Per Day</h3>
+                    <h3 style="color: #f1f5f9; margin-bottom: 1rem;">Close Prices vs Quote Mark Tickers</h3>
                     <div id="plotly-chart" style="width: 100%; height: 350px;"></div>
+                    <div style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid #334155; color: #94a3b8; font-size: 0.85rem; line-height: 1.5; font-style: italic;">
+                        <strong>Note:</strong> Compares daily recorded close prices (from <code>1d</code> array, cadet blue line) with actively updated tickers that have at least one quote mark record (from <code>5m</code> array, purple line).
+                    </div>
+                </div>
+
+                <!-- Plotly Chart 2 Container: Daily NaN Percentage -->
+                <div style="background-color: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 1.5rem;">
+                    <h3 style="color: #f1f5f9; margin-bottom: 1rem;">Daily Database Null/NaN Density (%)</h3>
+                    <div id="plotly-changes-chart" style="width: 100%; height: 300px;"></div>
+                    <div style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid #334155; color: #94a3b8; font-size: 0.85rem; line-height: 1.5; font-style: italic;">
+                        <strong>Note:</strong> Compares total database Null/NaN density (rose line) with NaNs caused by standard quote variables (green line), extended hours variables (purple line), and Hard-to-Borrow parameters (yellow line). Standard quotes remain extremely flat, proving there is no standard trading data loss.
+                    </div>
                 </div>
 
                 <!-- Daily Stats Table -->
@@ -109,7 +121,12 @@
                             <thead>
                                 <tr style="border-bottom: 2px solid #334155; color: #94a3b8; font-size: 0.9rem;">
                                     <th style="padding: 0.75rem 1rem;">Date</th>
-                                    <th style="padding: 0.75rem 1rem;">Active Universe Tickers</th>
+                                    <th style="padding: 0.75rem 1rem;">Close Prices</th>
+                                    <th style="padding: 0.75rem 1rem;">Quote Marks</th>
+                                    <th style="padding: 0.75rem 1rem;">Std Quote NaN %</th>
+                                    <th style="padding: 0.75rem 1rem;">Extended NaN %</th>
+                                    <th style="padding: 0.75rem 1rem;">HTB NaN %</th>
+                                    <th style="padding: 0.75rem 1rem;">Total NaN %</th>
                                     <th style="padding: 0.75rem 1rem;">Status</th>
                                 </tr>
                             </thead>
@@ -117,9 +134,14 @@
                                 {% for row in db_info.table_data %}
                                 <tr class="table-row">
                                     <td style="padding: 0.75rem 1rem; color: #e2e8f0; font-family: monospace; font-size: 0.95rem;">{{ row.day }}</td>
-                                    <td style="padding: 0.75rem 1rem; color: #38bdf8; font-weight: 600;">{{ row.count }}</td>
+                                    <td style="padding: 0.75rem 1rem; color: #5f9ea0; font-weight: 600;">{{ row.close_prices }}</td>
+                                    <td style="padding: 0.75rem 1rem; color: #a855f7; font-weight: 600;">{{ row.mark_tickers }}</td>
+                                    <td style="padding: 0.75rem 1rem; color: #10b981; font-weight: 600;">{{ row.quote_nan_percent }}%</td>
+                                    <td style="padding: 0.75rem 1rem; color: #a855f7; font-weight: 600;">{{ row.extended_nan_percent }}%</td>
+                                    <td style="padding: 0.75rem 1rem; color: #eab308; font-weight: 600;">{{ row.htb_nan_percent }}%</td>
+                                    <td style="padding: 0.75rem 1rem; color: #f43f5e; font-weight: 600;">{{ row.nan_percent }}%</td>
                                     <td style="padding: 0.75rem 1rem;">
-                                        {% if row.count > 0 %}
+                                        {% if row.close_prices > 0 or row.mark_tickers > 0 %}
                                         <span style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; color: #10b981; background-color: rgba(16, 185, 129, 0.1); padding: 0.2rem 0.5rem; border-radius: 20px;">
                                             <span style="width: 6px; height: 6px; border-radius: 50%; background-color: #10b981;"></span>
                                             Populated
@@ -154,7 +176,7 @@
                 </div>
                 <div id="tickers-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 0.5rem; max-height: 500px; overflow-y: auto; padding-right: 0.5rem;">
                     {% for ticker in db_info.idents %}
-                    <div class="ticker-tag" data-symbol="{{ ticker }}">
+                    <div class="ticker-tag" data-symbol="{{ ticker }}" onclick="openTickerModal('{{ ticker }}')">
                         {{ ticker }}
                     </div>
                     {% endfor %}
@@ -293,11 +315,101 @@
         font-size: 0.85rem;
         font-weight: 600;
         transition: all 0.2s ease;
+        cursor: pointer;
     }
     .ticker-tag:hover {
         border-color: #38bdf8;
         color: #38bdf8;
         transform: scale(1.05);
+    }
+
+    /* Modal Overlay */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(15, 23, 42, 0.75);
+        backdrop-filter: blur(8px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s ease;
+    }
+    .modal-overlay.active {
+        opacity: 1;
+        pointer-events: auto;
+    }
+    
+    /* Modal Box */
+    .modal-box {
+        background-color: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 16px;
+        width: 90%;
+        max-width: 700px;
+        max-height: 90vh;
+        overflow-y: auto;
+        padding: 2rem;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        transform: translateY(20px);
+        transition: transform 0.3s ease;
+        position: relative;
+    }
+    .modal-overlay.active .modal-box {
+        transform: translateY(0);
+    }
+    
+    /* Modal Close Button */
+    .modal-close {
+        position: absolute;
+        top: 1rem;
+        right: 1.25rem;
+        background: transparent;
+        border: none;
+        color: #94a3b8;
+        font-size: 1.5rem;
+        cursor: pointer;
+        transition: color 0.2s;
+    }
+    .modal-close:hover {
+        color: #f1f5f9;
+    }
+
+    /* Modal Grid Stats */
+    .modal-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    .modal-stat-card {
+        background-color: #0f172a;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        padding: 0.75rem;
+        text-align: center;
+    }
+    .modal-stat-label {
+        font-size: 0.75rem;
+        color: #94a3b8;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 0.25rem;
+    }
+    .modal-stat-value {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: #f8fafc;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
     }
 
     /* Inputs */
@@ -414,24 +526,60 @@
 
     function renderPlotlyChart() {
         const chartDiv = document.getElementById('plotly-chart');
+        const changesChartDiv = document.getElementById('plotly-changes-chart');
         if (!chartDiv) return;
 
         // Parse JSON data sent from Flask
         const days = {% if db_info and db_info.days_json %}{{ db_info.days_json|safe }}{% else %}[]{% endif %};
-        const counts = {% if db_info and db_info.counts_json %}{{ db_info.counts_json|safe }}{% else %}[]{% endif %};
+        const closePrices = {% if db_info and db_info.close_prices_json %}{{ db_info.close_prices_json|safe }}{% else %}[]{% endif %};
+        const markTickers = {% if db_info and db_info.mark_tickers_json %}{{ db_info.mark_tickers_json|safe }}{% else %}[]{% endif %};
+        const nanPercents = {% if db_info and db_info.nan_percents_json %}{{ db_info.nan_percents_json|safe }}{% else %}[]{% endif %};
+        const quoteNaNPercents = {% if db_info and db_info.quote_nan_percents_json %}{{ db_info.quote_nan_percents_json|safe }}{% else %}[]{% endif %};
+        const extendedNaNPercents = {% if db_info and db_info.extended_nan_percents_json %}{{ db_info.extended_nan_percents_json|safe }}{% else %}[]{% endif %};
+        const htbNaNPercents = {% if db_info and db_info.htb_nan_percents_json %}{{ db_info.htb_nan_percents_json|safe }}{% else %}[]{% endif %};
+        const inactiveNaNPercents = {% if db_info and db_info.inactive_nan_percents_json %}{{ db_info.inactive_nan_percents_json|safe }}{% else %}[]{% endif %};
 
-        const trace = {
+        // Graph 1: Close Prices & Quote Marks
+        const traceClose = {
             x: days,
-            y: counts,
-            type: 'bar',
+            y: closePrices,
+            name: 'Close Prices',
+            type: 'scatter',
+            mode: 'lines+markers',
+            line: {
+                color: '#5f9ea0',
+                width: 2.5
+            },
             marker: {
-                color: '#38bdf8',
+                color: '#5f9ea0',
+                size: 6,
                 line: {
-                    color: '#0ea5e9',
+                    color: '#1e293b',
                     width: 1
                 }
             },
-            hovertemplate: '<b>Date:</b> %{x}<br><b>Active Tickers:</b> %{y}<extra></extra>'
+            hovertemplate: '<b>Date:</b> %{x}<br><b>Close Prices:</b> %{y}<extra></extra>'
+        };
+
+        const traceMark = {
+            x: days,
+            y: markTickers,
+            name: 'Quote Marks',
+            type: 'scatter',
+            mode: 'lines+markers',
+            line: {
+                color: '#a855f7',
+                width: 2.5
+            },
+            marker: {
+                color: '#a855f7',
+                size: 6,
+                line: {
+                    color: '#1e293b',
+                    width: 1
+                }
+            },
+            hovertemplate: '<b>Date:</b> %{x}<br><b>Quote Marks:</b> %{y}<extra></extra>'
         };
 
         const layout = {
@@ -440,21 +588,28 @@
             xaxis: {
                 gridcolor: '#334155',
                 tickcolor: '#334155',
-                font: { color: '#94a3b8', family: 'system-ui, sans-serif' },
+                tickfont: { color: '#f8fafc', family: 'system-ui, sans-serif', size: 12 },
                 type: 'date'
             },
             yaxis: {
                 gridcolor: '#334155',
                 tickcolor: '#334155',
-                font: { color: '#94a3b8', family: 'system-ui, sans-serif' },
+                tickfont: { color: '#f8fafc', family: 'system-ui, sans-serif', size: 12 },
                 title: {
                     text: 'Ticker Count',
-                    font: { color: '#94a3b8', size: 12 }
+                    font: { color: '#f8fafc', size: 14, family: 'system-ui, sans-serif', weight: 'bold' }
                 }
             },
-            margin: { t: 10, r: 10, b: 50, l: 50 },
+            margin: { t: 20, r: 20, b: 50, l: 60 },
             hovermode: 'closest',
-            bargap: 0.2
+            legend: {
+                font: { color: '#cbd5e1' },
+                orientation: 'h',
+                yanchor: 'bottom',
+                y: 1.02,
+                xanchor: 'right',
+                x: 1
+            }
         };
 
         const config = {
@@ -462,7 +617,98 @@
             displayModeBar: false
         };
 
-        Plotly.newPlot('plotly-chart', [trace], layout, config);
+        Plotly.newPlot('plotly-chart', [traceClose, traceMark], layout, config);
+
+        // Graph 2: Daily NaN Percentage
+        if (changesChartDiv) {
+            const traceTotal = {
+                x: days,
+                y: nanPercents,
+                name: 'Total Null/NaN %',
+                type: 'scatter',
+                mode: 'lines+markers',
+                line: { color: '#f43f5e', width: 2.5 },
+                marker: { color: '#f43f5e', size: 6, line: { color: '#1e293b', width: 1 } },
+                hovertemplate: '<b>Date:</b> %{x}<br><b>Total NaN:</b> %{y}%<extra></extra>'
+            };
+
+            const traceQuote = {
+                x: days,
+                y: quoteNaNPercents,
+                name: 'Std Quotes NaN %',
+                type: 'scatter',
+                mode: 'lines+markers',
+                line: { color: '#10b981', width: 2 },
+                marker: { color: '#10b981', size: 5, line: { color: '#1e293b', width: 1 } },
+                hovertemplate: '<b>Date:</b> %{x}<br><b>Std Quotes NaN:</b> %{y}%<extra></extra>'
+            };
+
+            const traceExtended = {
+                x: days,
+                y: extendedNaNPercents,
+                name: 'Extended Hours NaN %',
+                type: 'scatter',
+                mode: 'lines+markers',
+                line: { color: '#a855f7', width: 2 },
+                marker: { color: '#a855f7', size: 5, line: { color: '#1e293b', width: 1 } },
+                hovertemplate: '<b>Date:</b> %{x}<br><b>Extended Hours NaN:</b> %{y}%<extra></extra>'
+            };
+
+            const traceHtb = {
+                x: days,
+                y: htbNaNPercents,
+                name: 'HTB Info NaN %',
+                type: 'scatter',
+                mode: 'lines+markers',
+                line: { color: '#eab308', width: 2 },
+                marker: { color: '#eab308', size: 5, line: { color: '#1e293b', width: 1 } },
+                hovertemplate: '<b>Date:</b> %{x}<br><b>HTB NaN:</b> %{y}%<extra></extra>'
+            };
+
+            const traceInactive = {
+                x: days,
+                y: inactiveNaNPercents,
+                name: 'Inactive Tickers %',
+                type: 'scatter',
+                mode: 'lines+markers',
+                line: { color: '#94a3b8', width: 2, dash: 'dash' },
+                marker: { color: '#94a3b8', size: 5, line: { color: '#1e293b', width: 1 } },
+                hovertemplate: '<b>Date:</b> %{x}<br><b>Inactive Tickers %:</b> %{y}%<extra></extra>'
+            };
+
+            const layoutNaN = {
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                xaxis: {
+                    gridcolor: '#334155',
+                    tickcolor: '#334155',
+                    tickfont: { color: '#f8fafc', family: 'system-ui, sans-serif', size: 12 },
+                    type: 'date'
+                },
+                yaxis: {
+                    gridcolor: '#334155',
+                    tickcolor: '#334155',
+                    tickfont: { color: '#f8fafc', family: 'system-ui, sans-serif', size: 12 },
+                    title: {
+                        text: 'Null/NaN Density (%)',
+                        font: { color: '#f8fafc', size: 14, family: 'system-ui, sans-serif', weight: 'bold' }
+                    }
+                },
+                margin: { t: 20, r: 20, b: 50, l: 60 },
+                hovermode: 'closest',
+                legend: {
+                    font: { color: '#cbd5e1' },
+                    orientation: 'h',
+                    yanchor: 'bottom',
+                    y: 1.02,
+                    xanchor: 'right',
+                    x: 1
+                }
+            };
+
+            Plotly.newPlot('plotly-changes-chart', [traceTotal, traceQuote, traceExtended, traceHtb, traceInactive], layoutNaN, config);
+        }
+
         chartRendered = true;
     }
 
@@ -488,5 +734,160 @@
             noResults.style.display = 'block';
         }
     }
+
+    function openTickerModal(symbol) {
+        const modal = document.getElementById('ticker-modal');
+        const loading = document.getElementById('modal-loading');
+        const body = document.getElementById('modal-body');
+        
+        document.getElementById('modal-ticker-symbol').innerText = symbol;
+        document.getElementById('modal-ticker-name').innerText = 'Loading company metadata...';
+        
+        loading.style.display = 'flex';
+        body.style.display = 'none';
+        modal.classList.add('active');
+        
+        // Fetch details from the API
+        fetch('/api/ticker/' + symbol)
+            .then(res => {
+                if (!res.ok) throw new Error('API failure');
+                return res.json();
+            })
+            .then(data => {
+                loading.style.display = 'none';
+                body.style.display = 'block';
+                
+                // Populate text fields
+                document.getElementById('modal-ticker-name').innerText = data.asset_type || '';
+                document.getElementById('stat-exchange').innerText = data.exchange;
+                document.getElementById('stat-asset-type').innerText = data.asset_type;
+                document.getElementById('stat-close').innerText = data.latest_close !== 'N/A' ? '$' + data.latest_close : 'N/A';
+                document.getElementById('stat-pe').innerText = data.pe_ratio;
+                document.getElementById('stat-eps').innerText = data.eps !== 'N/A' ? '$' + data.eps : 'N/A';
+                document.getElementById('stat-div').innerText = data.div_yield !== 'N/A' ? data.div_yield + ' (' + (data.div_freq || 'N/A') + ')' : 'N/A';
+                document.getElementById('stat-vol').innerText = data.volume_10d + ' / ' + data.volume_1yr;
+                document.getElementById('stat-lifespan').innerText = data.total_days + ' Days (' + (data.first_date ? data.first_date.substring(5) : '') + ' to ' + (data.last_date ? data.last_date.substring(5) : '') + ')';
+                
+                // Plot Plotly chart
+                renderDetailChart(data.chart_dates, data.chart_prices, symbol);
+            })
+            .catch(err => {
+                console.error(err);
+                document.getElementById('modal-ticker-name').innerText = 'Error loading ticker stats';
+                loading.innerHTML = '<div style="color: #ef4444; font-weight: 600; text-align: center; margin-top: 1rem;">Failed to fetch ticker stats.</div>';
+            });
+    }
+
+    function renderDetailChart(dates, prices, symbol) {
+        const trace = {
+            x: dates,
+            y: prices,
+            name: symbol,
+            type: 'scatter',
+            mode: 'lines',
+            line: {
+                color: '#38bdf8',
+                width: 2
+            },
+            hovertemplate: '<b>Date:</b> %{x}<br><b>Price:</b> $%{y:.2f}<extra></extra>'
+        };
+
+        const layout = {
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            xaxis: {
+                gridcolor: '#334155',
+                tickcolor: '#334155',
+                tickfont: { color: '#f8fafc', family: 'system-ui, sans-serif', size: 10 },
+                type: 'date'
+            },
+            yaxis: {
+                gridcolor: '#334155',
+                tickcolor: '#334155',
+                tickfont: { color: '#f8fafc', family: 'system-ui, sans-serif', size: 10 },
+                title: {
+                    text: 'Price ($)',
+                    font: { color: '#f8fafc', size: 12, family: 'system-ui, sans-serif' }
+                }
+            },
+            margin: { t: 10, r: 10, b: 35, l: 45 },
+            hovermode: 'closest'
+        };
+
+        const config = {
+            responsive: true,
+            displayModeBar: false
+        };
+
+        Plotly.newPlot('ticker-history-chart', [trace], layout, config);
+    }
+
+    function closeTickerModal(event, force = false) {
+        if (force || event.target.id === 'ticker-modal') {
+            document.getElementById('ticker-modal').classList.remove('active');
+        }
+    }
 </script>
+
+<!-- TICKER DETAILS MODAL -->
+<div id="ticker-modal" class="modal-overlay" onclick="closeTickerModal(event)">
+    <div class="modal-box" onclick="event.stopPropagation()">
+        <button class="modal-close" onclick="closeTickerModal(event, true)">&times;</button>
+        <div style="display: flex; align-items: baseline; gap: 0.75rem; border-bottom: 1px solid #334155; padding-bottom: 0.75rem; margin-bottom: 1.5rem;">
+            <h2 id="modal-ticker-symbol" style="font-size: 2.2rem; font-weight: bold; color: #38bdf8; margin: 0;">AAPL</h2>
+            <span id="modal-ticker-name" style="font-size: 1.1rem; color: #cbd5e1; font-weight: 600;">APPLE INC.</span>
+        </div>
+        
+        <!-- Spinner / Loading State -->
+        <div id="modal-loading" style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 250px; gap: 1rem;">
+            <div style="width: 40px; height: 40px; border: 4px solid #334155; border-top-color: #38bdf8; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+            <div style="color: #94a3b8; font-size: 0.95rem;">Retrieving dataset metrics...</div>
+        </div>
+        
+        <!-- Modal Body (Hidden while loading) -->
+        <div id="modal-body" style="display: none;">
+            <!-- Stats Grid -->
+            <div class="modal-grid">
+                <div class="modal-stat-card">
+                    <div class="modal-stat-label">Exchange</div>
+                    <div id="stat-exchange" class="modal-stat-value">NASDAQ</div>
+                </div>
+                <div class="modal-stat-card">
+                    <div class="modal-stat-label">Asset Type</div>
+                    <div id="stat-asset-type" class="modal-stat-value" style="font-size: 0.9rem; line-height: 1.2; word-break: break-word;">Common Stock</div>
+                </div>
+                <div class="modal-stat-card">
+                    <div class="modal-stat-label">Latest Close</div>
+                    <div id="stat-close" class="modal-stat-value" style="color: #5f9ea0;">$182.45</div>
+                </div>
+                <div class="modal-stat-card">
+                    <div class="modal-stat-label">P/E Ratio</div>
+                    <div id="stat-pe" class="modal-stat-value">28.5</div>
+                </div>
+                <div class="modal-stat-card">
+                    <div class="modal-stat-label">EPS</div>
+                    <div id="stat-eps" class="modal-stat-value">$6.13</div>
+                </div>
+                <div class="modal-stat-card">
+                    <div class="modal-stat-label">Div Yield (Freq)</div>
+                    <div id="stat-div" class="modal-stat-value">0.52% (Q)</div>
+                </div>
+                <div class="modal-stat-card">
+                    <div class="modal-stat-label">10D / 1Y Vol</div>
+                    <div id="stat-vol" class="modal-stat-value">52.3M / 53M</div>
+                </div>
+                <div class="modal-stat-card">
+                    <div class="modal-stat-label">Recorded Lifespan</div>
+                    <div id="stat-lifespan" class="modal-stat-value" style="font-size: 0.95rem;">131 Days</div>
+                </div>
+            </div>
+            
+            <!-- Price Chart Container -->
+            <div style="background-color: #0f172a; border: 1px solid #334155; border-radius: 12px; padding: 1rem; margin-top: 1.5rem;">
+                <h4 style="color: #f1f5f9; margin: 0 0 1rem 0; font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: bold; color: #94a3b8;">Historical Price Trend (Daily Close)</h4>
+                <div id="ticker-history-chart" style="width: 100%; height: 260px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}

@@ -1,6 +1,7 @@
 # General File Types
 __init__.py
 __pycache__*
+*.pyc
 .ipynb_checkpoints
 .venv
 
@@ -12,7 +13,8 @@ secrets/
 universes/
 tests/
 data_backup/
-
+node_modules/
+interface/cache/
 
 # Files
 status.json

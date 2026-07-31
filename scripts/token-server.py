@@ -1,11 +1,10 @@
 from fastapi import FastAPI, UploadFile, File
 import shutil
-import os
 
 app = FastAPI()
 
 # This must match the internal path in your docker-compose
-TOKEN_PATH = "/app/secrets/tokens.json"
+TOKEN_PATH = "/app/secrets/tokens.db"
 
 @app.post("/update-token")
 async def update_token(file: UploadFile = File(...)):
