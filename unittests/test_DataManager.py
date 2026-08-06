@@ -238,6 +238,23 @@ class TestDataManager(unittest.TestCase):
         self.assertEqual(div_written, 0.50)
         ds_after.close()
 
+    @patch("logic.DataManager.UM.return_universe_list")
+    def test_save_corporate_actions_stock_dividend(self, mock_return_univ):
+        """save_corporate_actions_for_day processes Alpaca stock_dividends into corporate.splitRatio."""
+        mock_return_univ.return_value = ["AAPL"]
+        DataManager.create_new_db("2026-08-01")
+
+        with patch("alpaca.data.historical.corporate_actions.CorporateActionsClient.get_corporate_actions") as mock_alpaca:
+            mock_alpaca.return_value = {
+                'stock_dividends': [{'symbol': 'AAPL', 'ex_date': '2026-08-01', 'rate': 0.05}]
+            }
+            DataManager.save_corporate_actions_for_day("2026-08-01", use_alpaca=True)
+
+        ds_after = xr.open_zarr(DataManager.hot_path_db)
+        split_written = ds_after["1d"].sel(day="2026-08-01", ident="AAPL", fVar="corporate.splitRatio").values.item()
+        self.assertEqual(split_written, 1.05)
+        ds_after.close()
+
     def test_safe_replace_zarr_backup_and_recovery(self):
         """_safe_replace_zarr safely swaps target directory and cleans up backup folder (Fix 2.5)."""
         target = self.test_dir / "test_target.zarr"

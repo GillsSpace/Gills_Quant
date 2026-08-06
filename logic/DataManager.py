@@ -1008,22 +1008,34 @@ class DataManager:
                             )
                             raw_data = client.get_corporate_actions(request)
                             if isinstance(raw_data, dict):
+                                target_day = str(day)[:10]
                                 # Process dividends
                                 for div in raw_data.get('cash_dividends', []):
-                                    if div.get('ex_date') == day:
-                                        divs_map[div.get('symbol')] = float(div.get('rate', 0))
+                                    ex_date = str(div.get('ex_date') or '')[:10]
+                                    if ex_date == target_day:
+                                        val = float(div.get('rate') or div.get('amount') or 0)
+                                        divs_map[div.get('symbol')] = val
                                 # Process forward splits
                                 for spl in raw_data.get('forward_splits', []):
-                                    if spl.get('ex_date') == day:
+                                    ex_date = str(spl.get('ex_date') or '')[:10]
+                                    if ex_date == target_day:
                                         new_rate = float(spl.get('new_rate') or 1)
                                         old_rate = float(spl.get('old_rate') or 1)
                                         splits_map[spl.get('symbol')] = new_rate / old_rate if old_rate != 0 else 1.0
                                 # Process reverse splits
                                 for spl in raw_data.get('reverse_splits', []):
-                                    if spl.get('ex_date') == day:
+                                    ex_date = str(spl.get('ex_date') or '')[:10]
+                                    if ex_date == target_day:
                                         new_rate = float(spl.get('new_rate') or 1)
                                         old_rate = float(spl.get('old_rate') or 1)
                                         splits_map[spl.get('symbol')] = new_rate / old_rate if old_rate != 0 else 1.0
+                                # Process stock dividends (dilutes price like forward split)
+                                for div in raw_data.get('stock_dividends', []):
+                                    ex_date = str(div.get('ex_date') or '')[:10]
+                                    if ex_date == target_day:
+                                        rate = float(div.get('rate') or 0)
+                                        if rate > 0:
+                                            splits_map[div.get('symbol')] = 1.0 + rate
                 except Exception as e:
                     print(f"Alpaca query failed for {day}: {e}")
 
@@ -1047,8 +1059,8 @@ class DataManager:
                         ex_date_num = current_fVar_slice[idx, div_ex_col_idx]
                         if not np.isnan(ex_date_num):
                             ex_date_int = int(ex_date_num)
-                            day_int = int(day.replace('-', ''))
-                            if ex_date_int == day_int:
+                            day_clean = str(day)[:10].replace('-', '')
+                            if day_clean.isdigit() and ex_date_int == int(day_clean):
                                 amount = current_fVar_slice[idx, div_amt_col_idx]
                                 if not np.isnan(amount) and amount > 0:
                                     current_fVar_slice[idx, div_col_idx] = amount

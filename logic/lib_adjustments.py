@@ -57,12 +57,16 @@ def get_alpaca_corporate_actions(symbol: str, start_date: str, end_date: str) ->
             continue
         
         act_type = act.get('action_type')
-        if act_type == 'split':
+        if act_type in ('split', 'forward_split', 'reverse_split'):
             new_rate = float(act.get('new_rate') or 1)
             old_rate = float(act.get('old_rate') or 1)
             ratio = new_rate / old_rate if old_rate != 0 else 1.0
             splits.append({'date': ex_date, 'ratio': ratio})
-        elif act_type == 'dividend':
+        elif act_type == 'stock_dividend':
+            rate = float(act.get('rate') or 0)
+            if rate > 0:
+                splits.append({'date': ex_date, 'ratio': 1.0 + rate})
+        elif act_type in ('dividend', 'cash_dividend'):
             amount = float(act.get('amount') or 0)
             dividends.append({'date': ex_date, 'amount': amount})
             
