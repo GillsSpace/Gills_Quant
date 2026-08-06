@@ -1086,3 +1086,34 @@ class DataManager:
         finally:
             if ds_disk is not None:
                 ds_disk.close()
+
+    @staticmethod
+    def backfill_missing_days_and_corporate_actions():
+        """
+        Scans for missing day shells in current and previous month, inserts empty day shells,
+        and fetches corporate actions for backfilled days.
+        """
+        if not os.path.exists(DataManager.hot_path_db):
+            return
+
+        ds_disk = xr.open_zarr(DataManager.hot_path_db, consolidated=True)
+        try:
+            day_vals = [str(d) for d in ds_disk.day.values]
+            if not day_vals:
+                return
+
+            current_date = datetime.now().date()
+            first_curr = current_date.replace(day=1)
+            last_prev = first_curr - timedelta(days=1)
+            start_date_str = last_prev.replace(day=1).strftime("%Y-%m-%d")
+            end_date_str = current_date.strftime("%Y-%m-%d")
+
+            expected_days = return_day_str_range(start_date_str, end_date_str)
+            existing_days = set(day_vals)
+            missing_days = [d for d in expected_days if d not in existing_days]
+        finally:
+            ds_disk.close()
+
+        for day in missing_days:
+            DataManager.add_db_day_shell(day)
+            DataManager.save_corporate_actions_for_day(day, use_alpaca=True)

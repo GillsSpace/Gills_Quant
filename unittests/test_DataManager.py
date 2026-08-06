@@ -430,6 +430,27 @@ class TestDataManager(unittest.TestCase):
         self.assertIn("FULLNAN00000", list(ds.ident.values))
         ds.close()
 
+    @patch("logic.DataManager.DataManager.save_corporate_actions_for_day")
+    @patch("logic.DataManager.UM.return_universe_list")
+    def test_backfill_missing_days_and_corporate_actions(self, mock_return_univ, mock_save_ca):
+        """backfill_missing_days_and_corporate_actions scans and backfills missing days in current & prev month."""
+        mock_return_univ.return_value = ["AAPL"]
+        current_date = datetime.now().date()
+        first_curr = current_date.replace(day=1)
+        last_prev = first_curr - timedelta(days=1)
+        start_date_str = last_prev.replace(day=1).strftime("%Y-%m-%d")
+
+        # Create DB with only start_date_str
+        DataManager.create_new_db(start_date_str)
+
+        DataManager.backfill_missing_days_and_corporate_actions()
+
+        ds = xr.open_zarr(DataManager.hot_path_db)
+        # Should have added missing days up to today
+        self.assertGreater(len(ds.day), 1)
+        ds.close()
+        self.assertTrue(mock_save_ca.called)
+
 
 if __name__ == "__main__":
     unittest.main()
