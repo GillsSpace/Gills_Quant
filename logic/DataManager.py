@@ -523,6 +523,27 @@ class DataManager:
         finally:
             if ds_disk is not None:
                 ds_disk.close()
+
+    @staticmethod
+    def has_fundamental_data(day):
+        """
+        Checks if valid fundamental data exists for the given day in master database.
+        """
+        if not os.path.exists(DataManager.hot_path_db):
+            return False
+
+        ds_disk = None
+        try:
+            ds_disk = xr.open_zarr(DataManager.hot_path_db, consolidated=True)
+            if day not in ds_disk.day.values:
+                return False
+            slice_1d = ds_disk['1d'].sel(day=day).values
+            return bool(not np.isnan(slice_1d).all())
+        except Exception:
+            return False
+        finally:
+            if ds_disk is not None:
+                ds_disk.close()
     
     @staticmethod
     def make_month_cold_backup(month, year, overwrite_existing=False):

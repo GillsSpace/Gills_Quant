@@ -59,6 +59,12 @@ def main():
         dm.save_fVar_data(date_str)
         dm.save_corporate_actions_for_day(date_str)
 
+    if time_str == '04:30':
+        if not dm.has_fundamental_data(date_str):
+            print(f"\n\tRetrying fundamental data fetch for {date_str} at 04:30...")
+            dm.save_fVar_data(date_str)
+            dm.save_corporate_actions_for_day(date_str)
+
     et = tm.time()
     total_time = et - st
 

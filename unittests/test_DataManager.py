@@ -451,6 +451,32 @@ class TestDataManager(unittest.TestCase):
         ds.close()
         self.assertTrue(mock_save_ca.called)
 
+    @patch("logic.DataManager.UM.return_universe_list")
+    def test_has_fundamental_data(self, mock_return_univ):
+        """has_fundamental_data returns False for empty NaN shells and True once populated."""
+        mock_return_univ.return_value = ["AAPL"]
+        DataManager.create_new_db("2026-08-01")
+
+        # Initially empty NaN shell
+        self.assertFalse(DataManager.has_fundamental_data("2026-08-01"))
+
+        # Populate with mock fundamentals
+        mock_df = pd.DataFrame([{
+            "ident": "AAPL",
+            "fundamental.declarationDate": "2026-07-15",
+            "fundamental.divExDate": "2026-07-15",
+            "fundamental.divPayDate": "2026-07-15",
+            "fundamental.lastEarningsDate": "2026-07-15",
+            "fundamental.nextDivExDate": "2026-07-15",
+            "fundamental.nextDivPayDate": "2026-07-15",
+            "assetSubType": "ADR",
+            "reference.exchange": "Q"
+        }])
+        with patch("logic.DataManager.UM.return_universe_quotes_raw", return_value=(mock_df, [])):
+            DataManager.save_fVar_data("2026-08-01")
+
+        self.assertTrue(DataManager.has_fundamental_data("2026-08-01"))
+
 
 if __name__ == "__main__":
     unittest.main()
