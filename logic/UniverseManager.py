@@ -51,13 +51,15 @@ class UniverseManager:
         df: pd.DataFrame = query.get_scanner_data()[1]
 
         # Transform Names:
-        df['name'] = df['name'].str.replace(r'/P([^/]*)', r'/PR\1', regex=True)  # */P* -> */PR*
+        df['name'] = df['name'].str.replace(r'/P(?!R)([^/]*)', r'/PR\1', regex=True)  # */P* -> */PR*
         df['name'] = df['name'].str.replace(r'\.', '/', regex=True)  # *.* -> */*
 
         # Sort alphabetically by name:
         df = df.sort_values(by='name')
 
         # Save CSV:
+        UniverseManager.universe_folder_path.mkdir(parents=True, exist_ok=True)
+        UniverseManager.log_base_path.mkdir(parents=True, exist_ok=True)
         df.to_csv(UniverseManager.universe_folder_path / f"{universe_code}_long.csv", index=False)
         df['name'].to_csv(UniverseManager.universe_folder_path / f"{universe_code}.csv", index=False)
 
@@ -91,7 +93,7 @@ class UniverseManager:
         
         # Transform names in new_stocks_df
         if not new_stocks_df.empty:
-            new_stocks_df['name'] = new_stocks_df['name'].str.replace(r'/P([^/]*)', r'/PR\1', regex=True)  # */P* -> */PR*
+            new_stocks_df['name'] = new_stocks_df['name'].str.replace(r'/P(?!R)([^/]*)', r'/PR\1', regex=True)  # */P* -> */PR*
             new_stocks_df['name'] = new_stocks_df['name'].str.replace(r'\.', '/', regex=True)  # *.* -> */*
         
         existing_df = pd.DataFrame()
@@ -100,7 +102,7 @@ class UniverseManager:
             existing_df = pd.read_csv(long_csv_path, keep_default_na=False)
             
             # Align existing_df to the current schema (long_file_vars)
-            cols_to_keep = ['ticker'] + [col for col in UniverseManager.long_file_vars if col in existing_df.columns]
+            cols_to_keep = [col for col in UniverseManager.long_file_vars if col in existing_df.columns]
             existing_df = existing_df[cols_to_keep]
             for col in UniverseManager.long_file_vars:
                 if col not in existing_df.columns:
@@ -117,7 +119,7 @@ class UniverseManager:
             
             # Transform names in out_stocks_df
             if not out_stocks_df.empty:
-                out_stocks_df['name'] = out_stocks_df['name'].str.replace(r'/P([^/]*)', r'/PR\1', regex=True)  # */P* -> */PR*
+                out_stocks_df['name'] = out_stocks_df['name'].str.replace(r'/P(?!R)([^/]*)', r'/PR\1', regex=True)  # */P* -> */PR*
                 out_stocks_df['name'] = out_stocks_df['name'].str.replace(r'\.', '/', regex=True)  # *.* -> */*
             
             if not out_stocks_df.empty and not existing_df.empty:
@@ -140,11 +142,12 @@ class UniverseManager:
             combined_df = combined_df.drop_duplicates(subset=['name'], keep='first')
             combined_df = combined_df.sort_values(by='name')
         
+        UniverseManager.universe_folder_path.mkdir(parents=True, exist_ok=True)
         if not combined_df.empty:
             combined_df.to_csv(long_csv_path, index=False)
             combined_df['name'].to_csv(short_csv_path, index=False)
         else:
-            pd.DataFrame(columns=["name", "sector", "exchange", "industry"]).to_csv(long_csv_path, index=False)
+            pd.DataFrame(columns=UniverseManager.long_file_vars).to_csv(long_csv_path, index=False)
             pd.DataFrame(columns=["name"]).to_csv(short_csv_path, index=False)
 
         before_stocks_list = existing_df['name'].tolist() if not existing_df.empty else []

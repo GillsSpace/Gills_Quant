@@ -58,12 +58,12 @@ def get_alpaca_corporate_actions(symbol: str, start_date: str, end_date: str) ->
         
         act_type = act.get('action_type')
         if act_type == 'split':
-            new_rate = float(act.get('new_rate', 1))
-            old_rate = float(act.get('old_rate', 1))
+            new_rate = float(act.get('new_rate') or 1)
+            old_rate = float(act.get('old_rate') or 1)
             ratio = new_rate / old_rate if old_rate != 0 else 1.0
             splits.append({'date': ex_date, 'ratio': ratio})
         elif act_type == 'dividend':
-            amount = float(act.get('amount', 0))
+            amount = float(act.get('amount') or 0)
             dividends.append({'date': ex_date, 'amount': amount})
             
     return splits, dividends
@@ -179,7 +179,9 @@ def calculate_adjustment_factors(close_prices: pd.Series, splits: list, dividend
             if i > 0:
                 prev_close = close_prices.iloc[i - 1]
                 if not np.isnan(prev_close) and prev_close > 0:
-                    cum_factor *= (1.0 - div_amount / prev_close)
+                    mult = 1.0 - div_amount / prev_close
+                    if mult > 0:
+                        cum_factor *= mult
                     
     return factors
 

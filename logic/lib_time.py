@@ -71,13 +71,13 @@ def return_day_str_range(start:str, end:str=None, n=None, exclude_weekends:bool=
     elif n is not None:
         if start is not None:
             start_dt = datetime.strptime(start, "%Y-%m-%d")
-            for i in range(n):
+            while len(day_range) < n:
                 if not (exclude_weekends and start_dt.weekday() >= 5):
                     day_range.append(start_dt.strftime("%Y-%m-%d"))
                 start_dt += timedelta(days=1)
         elif end is not None:
             end_dt = datetime.strptime(end, "%Y-%m-%d")
-            for i in range(n):
+            while len(day_range) < n:
                 if not (exclude_weekends and end_dt.weekday() >= 5):
                     day_range.append(end_dt.strftime("%Y-%m-%d"))
                 end_dt -= timedelta(days=1)

@@ -176,6 +176,27 @@ class DataManager:
             os.makedirs(path, exist_ok=True)
 
     @staticmethod
+    def _safe_replace_zarr(temp_path: Path, target_path: Path):
+        """
+        Safely replaces target_path with temp_path using a backup folder to prevent data loss.
+        """
+        bak_path = target_path.with_name(target_path.name + '.bak')
+        if os.path.exists(bak_path):
+            shutil.rmtree(bak_path)
+
+        if os.path.exists(target_path):
+            shutil.move(str(target_path), str(bak_path))
+
+        try:
+            shutil.move(str(temp_path), str(target_path))
+            if os.path.exists(bak_path):
+                shutil.rmtree(bak_path)
+        except Exception as e:
+            if os.path.exists(bak_path) and not os.path.exists(target_path):
+                shutil.move(str(bak_path), str(target_path))
+            raise e
+
+    @staticmethod
     def _log_error_symbols(error_symbols):
         if not error_symbols:
             return
@@ -303,6 +324,8 @@ class DataManager:
             'day': 1,
             'time': -1,
             'ident': 1000,
+            'qVar': -1,
+            'fVar': -1,
         })
 
         # Clear encoding after chunking to ensure Zarr uses our chunk specification
@@ -316,10 +339,8 @@ class DataManager:
         if not is_initial_creation:
             ds_disk.close()
 
-        # Atomically replace old database with new one
-        if os.path.exists(db_path):
-            shutil.rmtree(db_path)
-        shutil.move(temp_db_path, db_path)
+        # Safely replace old database with new one
+        DataManager._safe_replace_zarr(temp_db_path, db_path)
 
     @staticmethod
     def create_new_db(initial_day):
@@ -512,9 +533,10 @@ class DataManager:
             year: Integer year (e.g., 2024)
             overwrite_existing: If True, overwrites existing backup for the month.
         """
-        backup_path = DataManager.cold_path / f"master_db_month__{year}_{month}.zarr"
-        temp_backup_path = DataManager.cold_path / f"temp_master_db_month__{year}_{month}.zarr"
-        print(f"    Creating cold backup for {year}-{month:02d} at {backup_path} (overwrite_existing={overwrite_existing})")
+        month_str = f"{int(month):02d}"
+        backup_path = DataManager.cold_path / f"master_db_month__{year}_{month_str}.zarr"
+        temp_backup_path = DataManager.cold_path / f"temp_master_db_month__{year}_{month_str}.zarr"
+        print(f"    Creating cold backup for {year}-{month_str} at {backup_path} (overwrite_existing={overwrite_existing})")
 
         if os.path.exists(backup_path) and not overwrite_existing:
             return
@@ -552,10 +574,8 @@ class DataManager:
             ds_subset.to_zarr(temp_backup_path, mode='w', consolidated=False)
             zarr.consolidate_metadata(str(temp_backup_path))
 
-            # Swap atomically
-            if os.path.exists(backup_path):
-                shutil.rmtree(backup_path)
-            shutil.move(temp_backup_path, backup_path)
+            # Swap safely
+            DataManager._safe_replace_zarr(temp_backup_path, backup_path)
 
         except Exception as e:
             print(f"Error creating cold backup for {year}-{month:02d}: {e}")
@@ -659,9 +679,8 @@ class DataManager:
 
             ds_disk.close()
 
-            # Atomically replace old database with new one
-            shutil.rmtree(DataManager.hot_path_db)
-            shutil.move(temp_db_path, DataManager.hot_path_db)
+            # Safely replace old database with new one
+            DataManager._safe_replace_zarr(temp_db_path, DataManager.hot_path_db)
 
             # Complete statistics
             stats.update({
@@ -872,7 +891,8 @@ class DataManager:
         """
         Returns the cold backup database for the specified month and year as an xarray Dataset.
         """
-        backup_path = DataManager.cold_path / f"master_db_month__{year}_{month}.zarr"
+        month_str = f"{int(month):02d}"
+        backup_path = DataManager.cold_path / f"master_db_month__{year}_{month_str}.zarr"
 
         if not os.path.exists(backup_path):
             return None
@@ -927,10 +947,8 @@ class DataManager:
             combined_ds.to_zarr(temp_db_path, mode='w', consolidated=True)
             zarr.consolidate_metadata(str(temp_db_path))
 
-            # Atomically replace old database with restored one
-            if os.path.exists(DataManager.hot_path_db):
-                shutil.rmtree(DataManager.hot_path_db)
-            shutil.move(temp_db_path, DataManager.hot_path_db)
+            # Safely replace old database with restored one
+            DataManager._safe_replace_zarr(temp_db_path, DataManager.hot_path_db)
         finally:
             for ds in opened_datasets:
                 ds.close()
@@ -997,14 +1015,14 @@ class DataManager:
                                 # Process forward splits
                                 for spl in raw_data.get('forward_splits', []):
                                     if spl.get('ex_date') == day:
-                                        new_rate = float(spl.get('new_rate', 1))
-                                        old_rate = float(spl.get('old_rate', 1))
+                                        new_rate = float(spl.get('new_rate') or 1)
+                                        old_rate = float(spl.get('old_rate') or 1)
                                         splits_map[spl.get('symbol')] = new_rate / old_rate if old_rate != 0 else 1.0
                                 # Process reverse splits
                                 for spl in raw_data.get('reverse_splits', []):
                                     if spl.get('ex_date') == day:
-                                        new_rate = float(spl.get('new_rate', 1))
-                                        old_rate = float(spl.get('old_rate', 1))
+                                        new_rate = float(spl.get('new_rate') or 1)
+                                        old_rate = float(spl.get('old_rate') or 1)
                                         splits_map[spl.get('symbol')] = new_rate / old_rate if old_rate != 0 else 1.0
                 except Exception as e:
                     print(f"Alpaca query failed for {day}: {e}")

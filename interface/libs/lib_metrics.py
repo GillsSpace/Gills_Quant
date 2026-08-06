@@ -64,10 +64,10 @@ def get_daily_metrics_stats(ds):
                 cache[day] = {
                     'close_prices': int(close_counts[i]),
                     'mark_tickers': int(mark_counts[i]),
-                    'nan_percent': round(((nan_5m_val[i] + nan_1d_val[i]) / tot_size) * 100, 3),
-                    'quote_nan_percent': round((q_val.values[i] / q_tot) * 100, 3) if q_tot > 0 else 0.0,
-                    'extended_nan_percent': round((ext_val.values[i] / ext_tot) * 100, 3) if ext_tot > 0 else 0.0,
-                    'htb_nan_percent': round((htb_val.values[i] / htb_tot) * 100, 3) if htb_tot > 0 else 0.0
+                    'nan_percent': round(float(((nan_5m_val.values[i] + nan_1d_val.values[i]) / tot_size) * 100), 3),
+                    'quote_nan_percent': round(float((q_val.values[i] / q_tot) * 100), 3) if q_tot > 0 else 0.0,
+                    'extended_nan_percent': round(float((ext_val.values[i] / ext_tot) * 100), 3) if ext_tot > 0 else 0.0,
+                    'htb_nan_percent': round(float((htb_val.values[i] / htb_tot) * 100), 3) if htb_tot > 0 else 0.0
                 }
         else:
             # Calculate individually for new days (takes ~0.2s per day)
