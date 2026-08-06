@@ -24,8 +24,14 @@ def main():
     time_str = datetime_rounded.strftime("%H:%M")
     day_of_week = datetime_rounded.strftime("%A")
 
+    extra_print_times = time_str in ['23:40', '23:45']
+
     #Always Run:
-    print(f"Running Gill Master Script for {date_str} at {time_str}", end="")
+    if extra_print_times:
+        print(f"Running Gill Master Script for {date_str} at {time_str}")
+    else:
+        print(f"Running Gill Master Script for {date_str} at {time_str}", end="")
+
     dm = DM()
     dm.save_qVar_data(date_str, time_str)
     #PM.execute_paper_trading(time_str)
@@ -56,7 +62,10 @@ def main():
     et = tm.time()
     total_time = et - st
 
-    print(f" ({total_time:.2f} seconds)")
+    if extra_print_times:
+        print(f"\tCompleted in {total_time:.2f} seconds")
+    else:
+        print(f" ({total_time:.2f} seconds)")
 
 if __name__ == "__main__":
     main()

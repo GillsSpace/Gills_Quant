@@ -536,7 +536,7 @@ class DataManager:
         month_str = f"{int(month):02d}"
         backup_path = DataManager.cold_path / f"master_db_month__{year}_{month_str}.zarr"
         temp_backup_path = DataManager.cold_path / f"temp_master_db_month__{year}_{month_str}.zarr"
-        print(f"    Creating cold backup for {year}-{month_str} at {backup_path} (overwrite_existing={overwrite_existing})")
+        print(f"\tCreating cold backup for {year}-{month_str} at {backup_path} (overwrite_existing={overwrite_existing})")
 
         if os.path.exists(backup_path) and not overwrite_existing:
             return

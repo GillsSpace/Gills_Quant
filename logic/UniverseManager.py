@@ -88,8 +88,6 @@ class UniverseManager:
         )
         in_result = in_query.get_scanner_data()
         new_stocks_df = pd.DataFrame(in_result[1])
-
-        print("new_stocks_df:", new_stocks_df)
         
         # Transform names in new_stocks_df
         if not new_stocks_df.empty:
@@ -166,6 +164,22 @@ class UniverseManager:
                 f.write(f"{timestamp} - Removed {len(removed_stocks)} stocks: {', '.join(str(s) for s in removed_stocks)}\n")
             if not added_stocks and not removed_stocks:
                 f.write(f"{timestamp} - No changes in the universe.\n")
+
+        print(f"\tNew Universe Size: {len(after_stocks_list)} stocks")
+        if added_stocks:
+            print(f"\tAdded {len(added_stocks)} stocks: {', '.join(str(s) for s in sorted(added_stocks))}")
+        else:
+            print(f"\tAdded 0 stocks")
+        if removed_stocks:
+            print(f"\tRemoved {len(removed_stocks)} stocks: {', '.join(str(s) for s in sorted(removed_stocks))}")
+        else:
+            print(f"\tRemoved 0 stocks")
+
+        return {
+            'new_size': len(after_stocks_list),
+            'added': sorted(added_stocks),
+            'removed': sorted(removed_stocks)
+        }
 
     @staticmethod
     def return_universe_list(universe_code: str) -> list:
