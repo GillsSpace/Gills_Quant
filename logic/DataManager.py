@@ -1,6 +1,7 @@
 import os
 import zarr
 import shutil
+import calendar
 import warnings
 import time as tm
 import numpy as np
@@ -583,7 +584,34 @@ class DataManager:
             # Select only the days for the requested month/year
             ds_subset = ds_disk.sel(day=days_to_keep)
 
-            # Ensure clean encodings (prevents chunk/encoding issues on write)
+            # Ensure full month calendar coverage (28-31 days)
+            _, num_days = calendar.monthrange(int(year), int(month))
+            target_month_days = return_day_str_range(f"{int(year)}-{month_str}-01", f"{int(year)}-{month_str}-{num_days:02d}")
+            missing_days = [d for d in target_month_days if d not in days_to_keep]
+
+            if missing_days:
+                cold_idents = ds_disk.ident.values.tolist()
+                cold_time = ds_disk.time.values
+                empty_5m = np.full((len(missing_days), len(cold_time), len(cold_idents), len(DataManager.quote_fields)), np.nan)
+                empty_1d = np.full((len(missing_days), len(cold_idents), len(DataManager.fundamental_fields)), np.nan)
+
+                shells = xr.Dataset(
+                    data_vars={
+                        '5m': (['day', 'time', 'ident', 'qVar'], empty_5m),
+                        '1d': (['day', 'ident', 'fVar'], empty_1d),
+                    },
+                    coords={
+                        'day': missing_days,
+                        'time': cold_time,
+                        'ident': cold_idents,
+                        'qVar': DataManager.quote_fields,
+                        'fVar': DataManager.fundamental_fields,
+                    }
+                )
+                ds_subset = xr.concat([ds_subset, shells], dim='day').sortby('day')
+
+            # Ensure uniform chunking and clean encodings
+            ds_subset = ds_subset.chunk({'day': 1, 'time': -1, 'ident': 1000, 'qVar': -1, 'fVar': -1})
             for var in ds_subset.variables:
                 ds_subset[var].encoding.clear()
 
@@ -599,7 +627,7 @@ class DataManager:
             DataManager._safe_replace_zarr(temp_backup_path, backup_path)
 
         except Exception as e:
-            print(f"Error creating cold backup for {year}-{month:02d}: {e}")
+            print(f"Error creating cold backup for {year}-{int(month):02d}: {e}")
             if os.path.exists(temp_backup_path):
                 shutil.rmtree(temp_backup_path)
         finally:

@@ -307,7 +307,7 @@ class TestDataManager(unittest.TestCase):
         cold_file = DataManager.cold_path / "master_db_month__2026_08.zarr"
         self.assertTrue(cold_file.exists())
         ds_cold = xr.open_zarr(cold_file)
-        self.assertEqual(list(ds_cold.day.values), ["2026-08-01", "2026-08-15"])
+        self.assertEqual(len(ds_cold.day.values), 31)
         ds_cold.close()
 
     @patch("logic.DataManager.UM.return_universe_list")
