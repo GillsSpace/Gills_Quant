@@ -16,22 +16,29 @@ class UniverseManager:
     universe_folder_path = Path(__file__).resolve().parent.parent / 'universes'
     log_base_path = Path(__file__).resolve().parent.parent / 'logs'
 
-    long_file_vars = ['name','sector','exchange','industry','close','average_volume_30d_calc','market_cap_basic']
+    long_file_vars = ['name','type','sector','exchange','industry','close','average_volume_30d_calc','market_cap_basic']
 
     universe_dict = {
         "u00": {
             "in": [
                 Column('average_volume_30d_calc') > 400,
-                Column('type') == 'stock',
+                Column('type').isin(['stock', 'fund']),
                 Column('exchange').isin(['AMEX', 'NASDAQ', 'NYSE']),
             ],
             "out": [
                 Column('average_volume_30d_calc') > 100,
-                Column('type') == 'stock',
+                Column('type').isin(['stock', 'fund']),
                 Column('exchange').isin(['AMEX', 'NASDAQ', 'NYSE']),
             ]
         },
     }
+
+    @staticmethod
+    def _clean_ticker_df(df: pd.DataFrame) -> pd.DataFrame:
+        if not df.empty and 'name' in df.columns:
+            df['name'] = df['name'].str.replace(r'/P(?!R)([^/]*)', r'/PR\1', regex=True)  # */P* -> */PR*
+            df['name'] = df['name'].str.replace(r'\.', '/', regex=True)  # *.* -> */*
+        return df
 
     @staticmethod
     def gen_csv(universe_code: str):
@@ -51,8 +58,7 @@ class UniverseManager:
         df: pd.DataFrame = query.get_scanner_data()[1]
 
         # Transform Names:
-        df['name'] = df['name'].str.replace(r'/P(?!R)([^/]*)', r'/PR\1', regex=True)  # */P* -> */PR*
-        df['name'] = df['name'].str.replace(r'\.', '/', regex=True)  # *.* -> */*
+        df = UniverseManager._clean_ticker_df(df)
 
         # Sort alphabetically by name:
         df = df.sort_values(by='name')
@@ -67,7 +73,7 @@ class UniverseManager:
         log_dir = UniverseManager.log_base_path / f"universe_change__{current_month}.log"
         with log_dir.open('a') as f:
             timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            f.write(f"{timestamp} - Freshly Generated universe {universe_code} with {len(df)} stocks.\n")
+            f.write(f"{timestamp} - Freshly Generated universe {universe_code} with {len(df)} symbols.\n")
 
     @staticmethod
     def regen_csv(universe_code: str):
@@ -90,9 +96,7 @@ class UniverseManager:
         new_stocks_df = pd.DataFrame(in_result[1])
         
         # Transform names in new_stocks_df
-        if not new_stocks_df.empty:
-            new_stocks_df['name'] = new_stocks_df['name'].str.replace(r'/P(?!R)([^/]*)', r'/PR\1', regex=True)  # */P* -> */PR*
-            new_stocks_df['name'] = new_stocks_df['name'].str.replace(r'\.', '/', regex=True)  # *.* -> */*
+        new_stocks_df = UniverseManager._clean_ticker_df(new_stocks_df)
         
         existing_df = pd.DataFrame()
 
@@ -116,9 +120,7 @@ class UniverseManager:
             out_stocks_df = pd.DataFrame(out_result[1])
             
             # Transform names in out_stocks_df
-            if not out_stocks_df.empty:
-                out_stocks_df['name'] = out_stocks_df['name'].str.replace(r'/P(?!R)([^/]*)', r'/PR\1', regex=True)  # */P* -> */PR*
-                out_stocks_df['name'] = out_stocks_df['name'].str.replace(r'\.', '/', regex=True)  # *.* -> */*
+            out_stocks_df = UniverseManager._clean_ticker_df(out_stocks_df)
             
             if not out_stocks_df.empty and not existing_df.empty:
                 existing_out_stocks = existing_df[existing_df['name'].isin(out_stocks_df['name'])]
@@ -159,21 +161,21 @@ class UniverseManager:
         with log_dir.open('a') as f:
             timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             if added_stocks:
-                f.write(f"{timestamp} - Added {len(added_stocks)} stocks: {', '.join(str(s) for s in added_stocks)}\n")
+                f.write(f"{timestamp} - Added {len(added_stocks)} symbols: {', '.join(str(s) for s in added_stocks)}\n")
             if removed_stocks:
-                f.write(f"{timestamp} - Removed {len(removed_stocks)} stocks: {', '.join(str(s) for s in removed_stocks)}\n")
+                f.write(f"{timestamp} - Removed {len(removed_stocks)} symbols: {', '.join(str(s) for s in removed_stocks)}\n")
             if not added_stocks and not removed_stocks:
                 f.write(f"{timestamp} - No changes in the universe.\n")
 
-        print(f"\tNew Universe Size: {len(after_stocks_list)} stocks")
+        print(f"\tNew Universe Size: {len(after_stocks_list)} symbols")
         if added_stocks:
-            print(f"\tAdded {len(added_stocks)} stocks: {', '.join(str(s) for s in sorted(added_stocks))}")
+            print(f"\tAdded {len(added_stocks)} symbols: {', '.join(str(s) for s in sorted(added_stocks))}")
         else:
-            print(f"\tAdded 0 stocks")
+            print(f"\tAdded 0 symbols")
         if removed_stocks:
-            print(f"\tRemoved {len(removed_stocks)} stocks: {', '.join(str(s) for s in sorted(removed_stocks))}")
+            print(f"\tRemoved {len(removed_stocks)} symbols: {', '.join(str(s) for s in sorted(removed_stocks))}")
         else:
-            print(f"\tRemoved 0 stocks")
+            print(f"\tRemoved 0 symbols")
 
         return {
             'new_size': len(after_stocks_list),

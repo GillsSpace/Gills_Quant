@@ -143,6 +143,7 @@ class DataManager:
         'fundamental.nextDivExDate',
         'fundamental.nextDivPayDate',
         'fundamental.peRatio',
+        'fundamental.fundLeverageFactor',
         'quote.closePrice',
         'corporate.splitRatio',
         'corporate.divAmount',
@@ -162,6 +163,13 @@ class DataManager:
         'PRF',
         'UIT',
         'CEF',
+        'ETF',
+        'ETN',
+        'MUTUAL_FUND',
+        'MMF',
+        'INDEX',
+        'EQUITY',
+        'COMMON',
     ], ordered=True)
 
     fundamental_exchange_dtype = CategoricalDtype(categories=[
@@ -170,6 +178,9 @@ class DataManager:
         '9',
         'P',
         'Q',
+        'Z',
+        'B',
+        'V',
     ], ordered=True)
 
     def __init__(self):
@@ -456,12 +467,12 @@ class DataManager:
             fundamentals_df[col] = np.nan
 
         #Custom Data Cleaning:
-        fundamentals_df['fundamental.declarationDate'] = pd.to_numeric(fundamentals_df['fundamental.declarationDate'].str[:10].str.replace('-', ''), errors='coerce')
-        fundamentals_df['fundamental.divExDate'] = pd.to_numeric(fundamentals_df['fundamental.divExDate'].str[:10].str.replace('-', ''), errors='coerce')
-        fundamentals_df['fundamental.divPayDate'] = pd.to_numeric(fundamentals_df['fundamental.divPayDate'].str[:10].str.replace('-', ''), errors='coerce')
-        fundamentals_df['fundamental.lastEarningsDate'] = pd.to_numeric(fundamentals_df['fundamental.lastEarningsDate'].str[:10].str.replace('-', ''), errors='coerce')
-        fundamentals_df['fundamental.nextDivExDate'] = pd.to_numeric(fundamentals_df['fundamental.nextDivExDate'].str[:10].str.replace('-', ''), errors='coerce')
-        fundamentals_df['fundamental.nextDivPayDate'] = pd.to_numeric(fundamentals_df['fundamental.nextDivPayDate'].str[:10].str.replace('-', ''), errors='coerce')
+        fundamentals_df['fundamental.declarationDate'] = pd.to_numeric(fundamentals_df['fundamental.declarationDate'].astype(str).str[:10].str.replace('-', ''), errors='coerce')
+        fundamentals_df['fundamental.divExDate'] = pd.to_numeric(fundamentals_df['fundamental.divExDate'].astype(str).str[:10].str.replace('-', ''), errors='coerce')
+        fundamentals_df['fundamental.divPayDate'] = pd.to_numeric(fundamentals_df['fundamental.divPayDate'].astype(str).str[:10].str.replace('-', ''), errors='coerce')
+        fundamentals_df['fundamental.lastEarningsDate'] = pd.to_numeric(fundamentals_df['fundamental.lastEarningsDate'].astype(str).str[:10].str.replace('-', ''), errors='coerce')
+        fundamentals_df['fundamental.nextDivExDate'] = pd.to_numeric(fundamentals_df['fundamental.nextDivExDate'].astype(str).str[:10].str.replace('-', ''), errors='coerce')
+        fundamentals_df['fundamental.nextDivPayDate'] = pd.to_numeric(fundamentals_df['fundamental.nextDivPayDate'].astype(str).str[:10].str.replace('-', ''), errors='coerce')
 
         # 1. Find unmapped categories BEFORE transforming (ignoring normal NaNs)
         valid_subtypes = DataManager.fundamental_assetSubType_dtype.categories

@@ -139,7 +139,7 @@ class TestUniverseManager(unittest.TestCase):
         log_file = self.log_dir / f"universe_change__{current_month}.log"
         self.assertTrue(log_file.exists())
         log_content = log_file.read_text()
-        self.assertIn("Freshly Generated universe u_test with 3 stocks", log_content)
+        self.assertIn("Freshly Generated universe u_test with 3 symbols", log_content)
 
     @patch("logic.UniverseManager.Query")
     def test_ticker_transformation_idempotency(self, mock_query_cls):
@@ -252,8 +252,8 @@ class TestUniverseManager(unittest.TestCase):
         current_month = datetime.now().strftime('%m_%Y')
         log_file = self.log_dir / f"universe_change__{current_month}.log"
         log_content = log_file.read_text()
-        self.assertIn("Added 1 stocks: NEW_STOCK", log_content)
-        self.assertIn("Removed 1 stocks: AAPL", log_content)
+        self.assertIn("Added 1 symbols: NEW_STOCK", log_content)
+        self.assertIn("Removed 1 symbols: AAPL", log_content)
 
     @patch("logic.UniverseManager.Query")
     def test_regen_csv_existing_csv_without_ticker_column(self, mock_query_cls):

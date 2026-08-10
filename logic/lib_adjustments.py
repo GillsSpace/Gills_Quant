@@ -106,55 +106,6 @@ def extract_db_dividends(zarr_store: xr.Dataset, symbol: str) -> list:
         print(f"Error extracting DB dividends for {symbol}: {e}")
         return []
 
-def detect_implied_splits(zarr_store: xr.Dataset, symbol: str, threshold: float = 0.1) -> list:
-    """
-    Detects corporate stock splits empirically by looking for sudden overnight 
-    price jumps that correspond to standard split ratios.
-    """
-    try:
-        close_prices = zarr_store['1d'].sel(ident=symbol, fVar='quote.closePrice').to_pandas().dropna()
-        if close_prices.empty:
-            return []
-            
-        splits = []
-        for i in range(1, len(close_prices)):
-            curr_day = close_prices.index[i]
-            prev_price = close_prices.iloc[i - 1]
-            curr_price = close_prices.iloc[i]
-            
-            if prev_price <= 0 or curr_price <= 0:
-                continue
-                
-            ratio = curr_price / prev_price
-            
-            detected_ratio = None
-            # Check 2:1 split (price halved)
-            if abs(ratio - 0.5) < threshold * 0.5:
-                detected_ratio = 2.0
-            # Check 3:1 split
-            elif abs(ratio - 0.3333) < threshold * 0.3333:
-                detected_ratio = 3.0
-            # Check 4:1 split
-            elif abs(ratio - 0.25) < threshold * 0.25:
-                detected_ratio = 4.0
-            # Check 3:2 split
-            elif abs(ratio - 0.6667) < threshold * 0.6667:
-                detected_ratio = 1.5
-            # Check Reverse 1:2 split (price doubled)
-            elif abs(ratio - 2.0) < threshold * 2.0:
-                detected_ratio = 0.5
-            # Check Reverse 1:5 split
-            elif abs(ratio - 5.0) < threshold * 5.0:
-                detected_ratio = 0.2
-                
-            if detected_ratio is not None:
-                splits.append({'date': curr_day, 'ratio': detected_ratio})
-                
-        return splits
-    except Exception as e:
-        print(f"Error detecting splits for {symbol}: {e}")
-        return []
-
 def calculate_adjustment_factors(close_prices: pd.Series, splits: list, dividends: list) -> pd.Series:
     """
     Calculates cumulative backward-adjustment factors based on ex-dates of corporate actions.
@@ -207,17 +158,17 @@ def get_adjusted_prices(zarr_store: xr.Dataset, symbol: str, price_var: str = 'q
         return raw_5m, raw_5m  # No historical daily data, return raw
         
     # 3. Retrieve corporate actions
+    splits = []
+    dividends = []
     if use_alpaca and HAS_ALPACA:
         start_date = close_prices.index[0]
         end_date = close_prices.index[-1]
         try:
             splits, dividends = get_alpaca_corporate_actions(symbol, start_date, end_date)
         except Exception as e:
-            print(f"Alpaca Corporate Actions failed: {e}. Falling back to DB/Empirical method.")
-            splits = detect_implied_splits(zarr_store, symbol)
+            print(f"Alpaca Corporate Actions failed for {symbol}: {e}. Falling back to DB dividends only.")
             dividends = extract_db_dividends(zarr_store, symbol)
     else:
-        splits = detect_implied_splits(zarr_store, symbol)
         dividends = extract_db_dividends(zarr_store, symbol)
         
     # 4. Calculate adjustment factors

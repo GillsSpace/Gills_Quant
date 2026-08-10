@@ -24,7 +24,7 @@ if __name__ == "__main__":
             print("Available commands:")
             print("  ----------------------- Setup Commands --------------------------")
             print("  [s-d]  setup-dirs            Set up the directory structure (non-destructive).")
-            print("  [s-c]  setup-collection      Create a new universe 'u00' and generate its CSV file.")
+            print("  [s-c]  setup-collection      Create a new universe 'u00' (stocks & funds) and generate its CSV file.")
             print("  ----------------------- Test Commands ---------------------------")
             print("  [t-s] test-schwab            Test the Schwab client connection.")
             print("  ----------------------- Database Commands -----------------------")
@@ -42,8 +42,8 @@ if __name__ == "__main__":
         if command in ["s-d", "setup-dirs"]:
             setup_dir_structure()
         if command in ["s-c", "setup-collection"]:
-            print("This will create/ovewrite a new universe 'u00' and generate its CSV file.")
-            confirmation = input("This will alsocreate a new database for the current date. This will delete any existing database. Continue? (y/n): ").strip().lower()
+            print("This will create/overwrite a new universe 'u00' (stocks & funds) and generate its CSV file.")
+            confirmation = input("This will also create a new database for the current date. This will delete any existing database. Continue? (y/n): ").strip().lower()
             if confirmation not in ['y', 'yes']:
                 print("Operation cancelled.")
                 continue
