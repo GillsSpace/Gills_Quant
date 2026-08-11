@@ -31,6 +31,7 @@ class DataManager:
     master_universe = 'u00'
     hot_data_retention_days = 180
 
+    #region Quote Constants
     Q_HTB_RATE = 'reference.htbRate'
     Q_HTB_QUANTITY = 'reference.htbQuantity'
     Q_ASK_PRICE_EXT = 'extended.askPrice'
@@ -90,7 +91,6 @@ class DataManager:
     C_SPLIT_RATIO = 'corporate.splitRatio'
     C_DIV_AMOUNT = 'corporate.divAmount'
 
-    # SEC EDGAR Fundamental Constants
     F_FILING_DATE = 'fundamental.filingDate'
     F_PERIOD_END_DATE = 'fundamental.periodEndDate'
     F_REVENUE = 'fundamental.revenue'
@@ -147,6 +147,7 @@ class DataManager:
     F_CURRENT_RATIO = 'fundamental.currentRatio'
     F_QUICK_RATIO = 'fundamental.quickRatio'
     F_DEBT_TO_EQUITY = 'fundamental.debtToEquity'
+    #endregion
 
     quote_fields = [
         'reference.htbRate',
@@ -209,7 +210,6 @@ class DataManager:
         'quote.closePrice',
         'corporate.splitRatio',
         'corporate.divAmount',
-        # SEC EDGAR Fundamental Fields:
         'fundamental.filingDate',
         'fundamental.periodEndDate',
         'fundamental.revenue',

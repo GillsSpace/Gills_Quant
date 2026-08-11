@@ -522,6 +522,53 @@ class TestDataManager(unittest.TestCase):
         self.assertIn("AAPL", res)
         patch.stopall()
 
+    @patch("logic.lib_edgar.get_ticker_cik_map", return_value={"AAPL": "0000320193"})
+    @patch("logic.lib_edgar.urllib.request.urlopen")
+    def test_cross_process_filing_symbols_state_persistence(self, mock_urlopen, mock_cik_map):
+        """Test that detect_todays_filing_symbols persists findings to disk for update_current_edgar_data_file."""
+        from logic.lib_edgar import detect_todays_filing_symbols, update_current_edgar_data_file, TODAYS_FILING_SYMBOLS_FILE
+        import json
+        import os
+
+        # Mock SEC RSS Atom response containing AAPL CIK
+        rss_xml = b'<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"><entry><title>10-Q - Apple Inc. (0000320193)</title></entry></feed>'
+        mock_resp = patch("urllib.request.urlopen").start()
+        mock_resp.return_value.__enter__.return_value.read.return_value = rss_xml
+
+        # 1. Process 1 (03:20 AM): detect_todays_filing_symbols
+        detected = detect_todays_filing_symbols(universe_symbols=["AAPL", "MSFT"], max_retries=1)
+        self.assertIn("AAPL", detected)
+        self.assertTrue(TODAYS_FILING_SYMBOLS_FILE.exists())
+
+        with open(TODAYS_FILING_SYMBOLS_FILE, 'r') as f:
+            saved_symbols = json.load(f)
+        self.assertEqual(saved_symbols, ["AAPL"])
+
+        # 2. Process 2 (03:25 AM): update_current_edgar_data_file with symbols_to_update=None
+        with patch("logic.lib_edgar.fetch_sec_company_facts", return_value={}):
+            df_updated = update_current_edgar_data_file(symbols_to_update=None, universe_symbols=["AAPL", "MSFT"], max_retries=1)
+            self.assertIsNotNone(df_updated)
+
+        patch.stopall()
+
+    def test_rebuild_current_edgar_data_file_from_cold_backup(self):
+        """Test rebuild_current_edgar_data_file restores from cold backup when primary parquet is missing."""
+        from logic.lib_edgar import rebuild_current_edgar_data_file, CURRENT_EDGAR_PARQUET_FILE, COLD_BACKUP_PARQUET_FILE
+        import shutil
+
+        # Ensure cold backup exists for test
+        COLD_BACKUP_PARQUET_FILE.parent.mkdir(parents=True, exist_ok=True)
+        dummy_df = pl.DataFrame([{"ident": "TEST_SYM", "revenue": 500.0}])
+        dummy_df.write_parquet(COLD_BACKUP_PARQUET_FILE)
+
+        # Remove primary parquet if exists
+        if CURRENT_EDGAR_PARQUET_FILE.exists():
+            os.remove(CURRENT_EDGAR_PARQUET_FILE)
+
+        res_df = rebuild_current_edgar_data_file()
+        self.assertTrue(CURRENT_EDGAR_PARQUET_FILE.exists())
+        self.assertIn("TEST_SYM", res_df["ident"].to_list())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -27,7 +27,8 @@ def main():
 
     extra_print_times = time_str in ['03:15', '03:20', '03:25', '23:40', '23:45']
 
-    #Always Run:
+    # Always Run: =======================================================================
+
     if extra_print_times:
         print(f"Running Gill Master Script for {date_str} at {time_str}")
     else:
@@ -35,7 +36,10 @@ def main():
 
     dm = DM()
     dm.save_qVar_data(date_str, time_str)
-    #PM.execute_paper_trading(time_str)
+
+    # ===================================================================================
+
+    # Scheduled Tasks: ==================================================================
 
     if time_str == '03:15':
         update_ticker_cik_map(max_retries=5)
@@ -53,7 +57,6 @@ def main():
     if time_str == '04:30':
         if not dm.has_fundamental_data(date_str):
             print(f"\n\tRetrying fundamental data fetch for {date_str} at 04:30...")
-            update_current_edgar_data_file(max_retries=5)
             dm.save_fVar_data(date_str)
             dm.save_corporate_actions_for_day(date_str)
 
@@ -73,6 +76,8 @@ def main():
         prev_month= 12 if month == 1 else (month - 1)
         prev_year = year - 1 if month == 1 else year
         dm.make_month_cold_backup(month=prev_month, year=prev_year, overwrite_existing=True)
+
+    # ===================================================================================
 
     if time_str == '23:55':
         send_daily_notification()    

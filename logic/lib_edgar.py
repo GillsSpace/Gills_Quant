@@ -213,43 +213,22 @@ def get_ticker_cik_map(force_refresh: bool = False) -> dict:
                 return json.load(f)
         return {}
 
-FACTS_CACHE_DIR = CACHE_DIR / 'sec_facts_cache'
-
 def fetch_sec_company_facts(cik: str) -> dict:
     """
-    Fetches official SEC XBRL company facts for a given CIK with disk caching.
+    Fetches official SEC XBRL company facts for a given CIK directly in-memory
+    without saving any disk cache files.
     """
     if not cik:
         return {}
     cik_padded = str(cik).zfill(10)
-    FACTS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    cache_file = FACTS_CACHE_DIR / f"CIK{cik_padded}.json"
-
-    # Read from local cache if younger than 7 days
-    if cache_file.exists():
-        file_age_days = (time.time() - cache_file.stat().st_mtime) / (3600 * 24)
-        if file_age_days < 7:
-            try:
-                with open(cache_file, 'r') as f:
-                    return json.load(f)
-            except Exception:
-                pass
-
     url = f'https://data.sec.gov/api/xbrl/companyfacts/CIK{cik_padded}.json'
     req = urllib.request.Request(url, headers=SEC_HEADERS)
     try:
+        time.sleep(0.11)  # SEC rate limit: <=10 req/sec
         with urllib.request.urlopen(req, timeout=10) as resp:
             data = json.loads(resp.read().decode('utf-8'))
-            with open(cache_file, 'w') as f:
-                json.dump(data, f)
             return data
-    except Exception as e:
-        if cache_file.exists():
-            try:
-                with open(cache_file, 'r') as f:
-                    return json.load(f)
-            except Exception:
-                pass
+    except Exception:
         return {}
 
 def _safe_float(val, default=np.nan):
@@ -390,9 +369,12 @@ def update_ticker_cik_map(max_retries: int = 5) -> dict:
     print(f"[03:15 EDGAR Map] All {max_retries} retries failed. Using existing cached map.", flush=True)
     return get_ticker_cik_map(force_refresh=False)
 
+TODAYS_FILING_SYMBOLS_FILE = CACHE_DIR / 'todays_filing_symbols.json'
+
 def detect_todays_filing_symbols(universe_symbols: list = None, max_retries: int = 5) -> list:
     """
     Polls SEC Atom RSS feed & Schwab earnings dates to find symbols requiring updates today.
+    Saves findings to universes/todays_filing_symbols.json for the 03:25 AM task.
     Executed nightly at 03:20 AM.
     """
     import polars as pl
@@ -436,14 +418,27 @@ def detect_todays_filing_symbols(universe_symbols: list = None, max_retries: int
             if cik and cik in ciks_today:
                 symbols_to_update.append(sym)
                 
-    print(f"[03:20 EDGAR Detector] Identified {len(symbols_to_update)} universe symbols filing today.", flush=True)
+    try:
+        with open(TODAYS_FILING_SYMBOLS_FILE, 'w') as f:
+            json.dump(symbols_to_update, f)
+    except Exception as e:
+        print(f"Warning: Failed writing {TODAYS_FILING_SYMBOLS_FILE.name}: {e}")
+
+    print(f"[03:20 EDGAR Detector] Identified {len(symbols_to_update)} universe symbols filing today (saved to {TODAYS_FILING_SYMBOLS_FILE.name}).", flush=True)
     return symbols_to_update
 
-def bootstrap_current_edgar_data_from_cache(universe_symbols: list = None) -> Any:
+COLD_BACKUP_PARQUET_FILE = Path(__file__).resolve().parent.parent / 'data' / 'cold' / 'current_edgar_data_backup.parquet'
+
+def rebuild_current_edgar_data_file(universe_symbols: list = None, max_retries: int = 5) -> Any:
     """
-    Builds initial data/current_edgar_data.parquet from existing files in universes/sec_facts_cache/.
+    Alternate recovery method to replace a lost, missing, or corrupted data/current_edgar_data.parquet file.
+    1. Attempts to restore from data/cold/current_edgar_data_backup.parquet if available.
+    2. If no cold backup exists, streams SEC facts directly in-memory for universe u00 symbols
+       and writes a fresh data/current_edgar_data.parquet file (zero raw JSON files saved to disk).
     """
     import polars as pl
+    import shutil
+
     if universe_symbols is None:
         try:
             u_df = pl.read_csv(CACHE_DIR / 'u00.csv')
@@ -451,26 +446,49 @@ def bootstrap_current_edgar_data_from_cache(universe_symbols: list = None) -> An
         except Exception:
             universe_symbols = []
 
+    print("[EDGAR Recovery] Attempting to rebuild missing data/current_edgar_data.parquet...", flush=True)
+
+    # 1. Try restoring from cold storage backup
+    if COLD_BACKUP_PARQUET_FILE.exists():
+        try:
+            CURRENT_EDGAR_PARQUET_FILE.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(COLD_BACKUP_PARQUET_FILE, CURRENT_EDGAR_PARQUET_FILE)
+            restored_df = pl.read_parquet(CURRENT_EDGAR_PARQUET_FILE)
+            print(f"✓ [EDGAR Recovery] Restored {CURRENT_EDGAR_PARQUET_FILE.name} from cold backup ({len(restored_df)} symbols)!", flush=True)
+            return restored_df
+        except Exception as e:
+            print(f"[EDGAR Recovery] Failed restoring cold backup: {e}", flush=True)
+
+    # 2. Rebuild directly in-memory without saving any raw JSON cache files
     ticker_cik_map = get_ticker_cik_map()
     target_day = time.strftime("%Y-%m-%d")
     
     rows = []
-    print(f"Bootstrapping current_edgar_data.parquet from cached JSON files for {len(universe_symbols)} universe symbols...", flush=True)
-    for sym in universe_symbols:
+    print(f"[EDGAR Recovery] Streaming in-memory SEC facts for {len(universe_symbols)} universe symbols...", flush=True)
+    for idx, sym in enumerate(universe_symbols):
         cik = ticker_cik_map.get(sym.upper())
         if cik:
-            facts = fetch_sec_company_facts(cik)
-            if facts:
-                sec_dict = extract_point_in_time_sec_fundamentals(facts, target_day)
-                if sec_dict:
-                    sec_dict['ident'] = sym
-                    rows.append(sec_dict)
-                    
+            for attempt in range(1, max_retries + 1):
+                try:
+                    facts = fetch_sec_company_facts(cik)
+                    if facts:
+                        sec_dict = extract_point_in_time_sec_fundamentals(facts, target_day)
+                        if sec_dict:
+                            sec_dict['ident'] = sym
+                            rows.append(sec_dict)
+                        del facts
+                    break
+                except Exception as e:
+                    if attempt == max_retries:
+                        pass
+                    else:
+                        time.sleep(1)
+
     df = pl.DataFrame(rows) if rows else pl.DataFrame()
     if not df.is_empty():
         CURRENT_EDGAR_PARQUET_FILE.parent.mkdir(parents=True, exist_ok=True)
         df.write_parquet(CURRENT_EDGAR_PARQUET_FILE)
-        print(f"✓ Successfully bootstrapped {CURRENT_EDGAR_PARQUET_FILE.name} ({len(df)} symbols, size: {CURRENT_EDGAR_PARQUET_FILE.stat().st_size / 1024:.1f} KB)!", flush=True)
+        print(f"✓ [EDGAR Recovery] Successfully rebuilt {CURRENT_EDGAR_PARQUET_FILE.name} ({len(df)} symbols, size: {CURRENT_EDGAR_PARQUET_FILE.stat().st_size / 1024:.1f} KB)!", flush=True)
     return df
 
 def update_current_edgar_data_file(symbols_to_update: list = None, universe_symbols: list = None, max_retries: int = 5) -> Any:
@@ -487,8 +505,15 @@ def update_current_edgar_data_file(symbols_to_update: list = None, universe_symb
         except Exception:
             universe_symbols = []
 
+    if symbols_to_update is None and TODAYS_FILING_SYMBOLS_FILE.exists():
+        try:
+            with open(TODAYS_FILING_SYMBOLS_FILE, 'r') as f:
+                symbols_to_update = json.load(f)
+        except Exception:
+            symbols_to_update = []
+
     if not CURRENT_EDGAR_PARQUET_FILE.exists():
-        return bootstrap_current_edgar_data_from_cache(universe_symbols)
+        return rebuild_current_edgar_data_file(universe_symbols, max_retries=max_retries)
 
     current_df = pl.read_parquet(CURRENT_EDGAR_PARQUET_FILE)
     ticker_cik_map = get_ticker_cik_map()
@@ -516,7 +541,7 @@ def update_current_edgar_data_file(symbols_to_update: list = None, universe_symb
 
     # 2. Trim symbols no longer in universe_symbols
     if universe_symbols and 'ident' in current_df.columns:
-        current_df = current_df.filter(pl.col('ident').isin(universe_symbols))
+        current_df = current_df.filter(pl.col('ident').is_in(universe_symbols))
         
     # 3. Upsert updates and add new symbols
     existing_idents = set(current_df['ident'].to_list()) if 'ident' in current_df.columns else set()
@@ -537,12 +562,14 @@ def update_current_edgar_data_file(symbols_to_update: list = None, universe_symb
     return current_df
 
 def read_current_edgar_data() -> Any:
-    """Reads data/current_edgar_data.parquet locally in <5 milliseconds."""
+    """Reads data/current_edgar_data.parquet locally in <5 milliseconds. Auto-rebuilds if missing."""
     import polars as pl
-    if CURRENT_EDGAR_PARQUET_FILE.exists():
-        try:
-            return pl.read_parquet(CURRENT_EDGAR_PARQUET_FILE)
-        except Exception as e:
-            print(f"Warning: Failed reading {CURRENT_EDGAR_PARQUET_FILE.name}: {e}")
-    return pl.DataFrame()
+    if not CURRENT_EDGAR_PARQUET_FILE.exists():
+        return rebuild_current_edgar_data_file()
+    try:
+        return pl.read_parquet(CURRENT_EDGAR_PARQUET_FILE)
+    except Exception as e:
+        print(f"Warning: Failed reading {CURRENT_EDGAR_PARQUET_FILE.name}: {e}")
+        return rebuild_current_edgar_data_file()
+
 
