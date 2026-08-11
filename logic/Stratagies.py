@@ -6,10 +6,8 @@ import warnings
 import time as tm
 import numpy as np
 import xarray as xr
-import pandas as pd
 
 from pathlib import Path
-from pandas.api.types import CategoricalDtype
 from datetime import datetime, timedelta, time, date
 
 from logic.lib_time import *

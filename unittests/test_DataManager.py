@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 import numpy as np
 import pandas as pd
+import polars as pl
 import xarray as xr
 from datetime import datetime, timedelta
 
@@ -167,7 +168,7 @@ class TestDataManager(unittest.TestCase):
         DataManager.create_new_db("2026-08-01")
 
         # Mock raw quote response
-        df_quotes = pd.DataFrame([{
+        df_quotes = pl.DataFrame([{
             "ident": "AAPL",
             "quote.askPrice": 150.5,
             "quote.bidPrice": 150.4,
@@ -189,7 +190,7 @@ class TestDataManager(unittest.TestCase):
         mock_return_univ.return_value = ["AAPL"]
         DataManager.create_new_db("2026-08-01")
 
-        df_fundamentals = pd.DataFrame([{
+        df_fundamentals = pl.DataFrame([{
             "ident": "AAPL",
             "quote.closePrice": 155.0,
             "fundamental.declarationDate": "2026-07-15",
@@ -272,10 +273,10 @@ class TestDataManager(unittest.TestCase):
     def test_calculate_adjustment_factors_large_dividend(self):
         """calculate_adjustment_factors remains positive when dividend exceeds share price (Fix C)."""
         from logic.lib_adjustments import calculate_adjustment_factors
-        close_prices = pd.Series([2.0, 2.0], index=["2026-08-01", "2026-08-02"])
+        close_prices = pl.DataFrame({'day': ["2026-08-01", "2026-08-02"], 'close': [2.0, 2.0]})
         dividends = [{'date': '2026-08-02', 'amount': 3.0}]  # Dividend > share price
-        factors = calculate_adjustment_factors(close_prices, [], dividends)
-        self.assertTrue((factors > 0).all(), "Adjustment factors must remain positive.")
+        factors_df = calculate_adjustment_factors(close_prices, [], dividends)
+        self.assertTrue((factors_df['factor'] > 0).all(), "Adjustment factors must remain positive.")
 
     # -------------------------------------------------------------------------
     # 4. Backup Operations Tests
@@ -461,7 +462,7 @@ class TestDataManager(unittest.TestCase):
         self.assertFalse(DataManager.has_fundamental_data("2026-08-01"))
 
         # Populate with mock fundamentals
-        mock_df = pd.DataFrame([{
+        mock_df = pl.DataFrame([{
             "ident": "AAPL",
             "fundamental.declarationDate": "2026-07-15",
             "fundamental.divExDate": "2026-07-15",

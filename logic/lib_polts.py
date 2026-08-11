@@ -1,11 +1,9 @@
 #Imports
-import pandas as pd
+import numpy as np
+import polars as pl
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
-
-import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
+from datetime import datetime
 
 def plot_zarr_day(zarr_store, day, qVar='quote.mark', ident='AAPL', connect_gaps=False):
     """Extracts 5m data and plots it with a cleaned-up x-axis for one or more idents, handling gaps."""
@@ -15,19 +13,22 @@ def plot_zarr_day(zarr_store, day, qVar='quote.mark', ident='AAPL', connect_gaps
     
     for i in idents:
         # Extract data (contains NaNs for missing intervals)
-        data_raw = zarr_store['5m'].sel(day=day, qVar=qVar, ident=i).to_pandas()
+        da_5m = zarr_store['5m'].sel(day=day, qVar=qVar, ident=i)
+        times = [str(t) for t in da_5m.time.values]
+        vals = da_5m.values
         
         # Combine day and time into valid datetimes for correct gap rendering
-        x_dates = pd.to_datetime([f"{day} {t}" for t in data_raw.index])
+        x_dates = [datetime.strptime(f"{day} {t}", "%Y-%m-%d %H:%M") for t in times]
         
         # Plot main line with gaps
-        line = plt.plot(x_dates, data_raw.values, label=i, linewidth=1.5)
+        line = plt.plot(x_dates, vals, label=i, linewidth=1.5)
         
         # Conditionally bridge gaps with a transparent line
         if connect_gaps:
-            data_clean = data_raw.dropna()
-            x_clean = pd.to_datetime([f"{day} {t}" for t in data_clean.index])
-            plt.plot(x_clean, data_clean.values, color=line[0].get_color(), alpha=0.3, linewidth=1.5)
+            valid = [(x, v) for x, v in zip(x_dates, vals) if not np.isnan(v)]
+            if valid:
+                x_clean, v_clean = zip(*valid)
+                plt.plot(x_clean, v_clean, color=line[0].get_color(), alpha=0.3, linewidth=1.5)
     
     ax = plt.gca()
     ax.xaxis.set_major_locator(ticker.MaxNLocator(12)) 
@@ -50,22 +51,27 @@ def plot_zarr_range(zarr_store, start_day, end_day, qVar='', fVar='', ident='AAP
         plt.figure(figsize=(14, 6))
         
         for i in idents:
-            data_raw = zarr_store['5m'].sel(
+            da_5m = zarr_store['5m'].sel(
                 day=slice(start_day, end_day), 
                 qVar=qVar, 
                 ident=i
-            ).stack(timeline=('day', 'time')).to_pandas()
+            )
+            days = [str(d) for d in da_5m.day.values]
+            times = [str(t) for t in da_5m.time.values]
+            matrix = da_5m.values
             
-            x_dates = pd.to_datetime([f"{d} {t}" for d, t in data_raw.index])
+            x_dates = [datetime.strptime(f"{d} {t}", "%Y-%m-%d %H:%M") for d in days for t in times]
+            vals = matrix.ravel()
             
             # Plot main line with NaNs (creates gaps)
-            line = plt.plot(x_dates, data_raw.values, label=i, linewidth=1)
+            line = plt.plot(x_dates, vals, label=i, linewidth=1)
             
             # Conditionally plot continuous line to bridge gaps
             if connect_gaps:
-                data_clean = data_raw.dropna()
-                x_clean = pd.to_datetime([f"{d} {t}" for d, t in data_clean.index])
-                plt.plot(x_clean, data_clean.values, color=line[0].get_color(), alpha=0.3, linewidth=1)
+                valid = [(x, v) for x, v in zip(x_dates, vals) if not np.isnan(v)]
+                if valid:
+                    x_clean, v_clean = zip(*valid)
+                    plt.plot(x_clean, v_clean, color=line[0].get_color(), alpha=0.3, linewidth=1)
         
         ax = plt.gca()
         ax.xaxis.set_major_locator(ticker.MaxNLocator(10))
@@ -81,20 +87,23 @@ def plot_zarr_range(zarr_store, start_day, end_day, qVar='', fVar='', ident='AAP
         plt.figure(figsize=(14, 6))
         
         for i in idents:
-            data_raw = zarr_store['1d'].sel(
+            da_1d = zarr_store['1d'].sel(
                 day=slice(start_day, end_day), 
                 fVar=fVar, 
                 ident=i
-            ).to_pandas()
+            )
+            days = [str(d) for d in da_1d.day.values]
+            vals = da_1d.values
             
-            x_dates = pd.to_datetime(data_raw.index)
+            x_dates = [datetime.strptime(d, "%Y-%m-%d") for d in days]
             
-            line = plt.plot(x_dates, data_raw.values, label=i, linewidth=1)
+            line = plt.plot(x_dates, vals, label=i, linewidth=1)
             
             if connect_gaps:
-                data_clean = data_raw.dropna()
-                x_clean = pd.to_datetime(data_clean.index)
-                plt.plot(x_clean, data_clean.values, color=line[0].get_color(), alpha=0.3, linewidth=1)
+                valid = [(x, v) for x, v in zip(x_dates, vals) if not np.isnan(v)]
+                if valid:
+                    x_clean, v_clean = zip(*valid)
+                    plt.plot(x_clean, v_clean, color=line[0].get_color(), alpha=0.3, linewidth=1)
         
         ax = plt.gca()
         ax.xaxis.set_major_locator(ticker.MaxNLocator(10))

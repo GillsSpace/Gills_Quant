@@ -1,7 +1,7 @@
 # General Imports
 import os
 import sys
-import pandas as pd
+import polars as pl
 from pathlib import Path
 from datetime import datetime
 
@@ -106,7 +106,7 @@ if __name__ == "__main__":
                 overwrite = True if overwrite in ['y','yes'] else False
                 dm = DM()
                 zarr_store = DM.return_hot_store()
-                months = pd.to_datetime(zarr_store.day.values).strftime("%Y-%m").unique().to_list()
+                months = pl.Series('day', zarr_store.day.values).str.slice(0, 7).unique().to_list()
                 for month in months:
                     print(f"    Archiving month: {month}")
                     year, month = month.split("-")

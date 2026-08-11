@@ -6,6 +6,7 @@ import shutil
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 import pandas as pd
+import polars as pl
 from datetime import datetime
 
 # Add the project root to sys.path
@@ -298,8 +299,8 @@ class TestUniverseManager(unittest.TestCase):
         self.assertTrue(short_csv.exists())
         self.assertTrue(long_csv.exists())
 
-        df_long = pd.read_csv(long_csv)
-        self.assertTrue(df_long.empty)
+        df_long = pl.read_csv(long_csv)
+        self.assertTrue(df_long.is_empty())
         self.assertEqual(list(df_long.columns), UniverseManager.long_file_vars)
 
     # -------------------------------------------------------------------------
@@ -337,7 +338,7 @@ class TestUniverseManager(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertEqual(len(df), 2)
         self.assertIn("ident", df.columns)
-        self.assertListEqual(sorted(df["ident"].tolist()), ["AAPL", "MSFT"])
+        self.assertListEqual(sorted(df["ident"].to_list()), ["AAPL", "MSFT"])
 
     @patch("logic.UniverseManager.create_client_schwab")
     def test_return_universe_quotes_raw_batch_failure(self, mock_create_client):

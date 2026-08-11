@@ -1,7 +1,9 @@
 import os
+import re
 import json
 import time as tm
 import pandas as pd
+import polars as pl
 import schwabdev as sd
 
 from pathlib import Path
@@ -34,10 +36,18 @@ class UniverseManager:
     }
 
     @staticmethod
-    def _clean_ticker_df(df: pd.DataFrame) -> pd.DataFrame:
-        if not df.empty and 'name' in df.columns:
-            df['name'] = df['name'].str.replace(r'/P(?!R)([^/]*)', r'/PR\1', regex=True)  # */P* -> */PR*
-            df['name'] = df['name'].str.replace(r'\.', '/', regex=True)  # *.* -> */*
+    def _clean_symbol(s: str) -> str:
+        if not isinstance(s, str):
+            return s
+        s = re.sub(r'/P(?!R)([^/]*)', r'/PR\1', s)
+        return s.replace('.', '/')
+
+    @staticmethod
+    def _clean_ticker_df(df: pl.DataFrame) -> pl.DataFrame:
+        if not df.is_empty() and 'name' in df.columns:
+            df = df.with_columns(
+                pl.col('name').map_elements(UniverseManager._clean_symbol, return_dtype=pl.String).alias('name')
+            )
         return df
 
     @staticmethod
@@ -55,19 +65,20 @@ class UniverseManager:
             .where(*universe_criteria)
             .limit(10_000)
         )
-        df: pd.DataFrame = query.get_scanner_data()[1]
+        raw_df = query.get_scanner_data()[1]
+        df: pl.DataFrame = pl.from_pandas(raw_df)
 
         # Transform Names:
         df = UniverseManager._clean_ticker_df(df)
 
         # Sort alphabetically by name:
-        df = df.sort_values(by='name')
+        df = df.sort('name')
 
         # Save CSV:
         UniverseManager.universe_folder_path.mkdir(parents=True, exist_ok=True)
         UniverseManager.log_base_path.mkdir(parents=True, exist_ok=True)
-        df.to_csv(UniverseManager.universe_folder_path / f"{universe_code}_long.csv", index=False)
-        df['name'].to_csv(UniverseManager.universe_folder_path / f"{universe_code}.csv", index=False)
+        df.write_csv(UniverseManager.universe_folder_path / f"{universe_code}_long.csv")
+        df.select('name').write_csv(UniverseManager.universe_folder_path / f"{universe_code}.csv")
 
         current_month = datetime.now().strftime('%m_%Y')
         log_dir = UniverseManager.log_base_path / f"universe_change__{current_month}.log"
@@ -93,22 +104,18 @@ class UniverseManager:
             .limit(10_000)
         )
         in_result = in_query.get_scanner_data()
-        new_stocks_df = pd.DataFrame(in_result[1])
+        new_stocks_df = UniverseManager._clean_ticker_df(pl.from_pandas(pd.DataFrame(in_result[1])))
         
-        # Transform names in new_stocks_df
-        new_stocks_df = UniverseManager._clean_ticker_df(new_stocks_df)
-        
-        existing_df = pd.DataFrame()
+        existing_df = pl.DataFrame()
 
         if os.path.exists(long_csv_path):
-            existing_df = pd.read_csv(long_csv_path, keep_default_na=False)
+            existing_df = pl.read_csv(long_csv_path, null_values=[])
             
             # Align existing_df to the current schema (long_file_vars)
-            cols_to_keep = [col for col in UniverseManager.long_file_vars if col in existing_df.columns]
-            existing_df = existing_df[cols_to_keep]
             for col in UniverseManager.long_file_vars:
                 if col not in existing_df.columns:
-                    existing_df[col] = float('nan')
+                    existing_df = existing_df.with_columns(pl.lit(None).alias(col))
+            existing_df = existing_df.select(UniverseManager.long_file_vars)
             
             out_query = (
                 Query()
@@ -117,41 +124,34 @@ class UniverseManager:
                 .limit(10_000)
             )
             out_result = out_query.get_scanner_data()
-            out_stocks_df = pd.DataFrame(out_result[1])
+            out_stocks_df = UniverseManager._clean_ticker_df(pl.from_pandas(pd.DataFrame(out_result[1])))
             
-            # Transform names in out_stocks_df
-            out_stocks_df = UniverseManager._clean_ticker_df(out_stocks_df)
-            
-            if not out_stocks_df.empty and not existing_df.empty:
-                existing_out_stocks = existing_df[existing_df['name'].isin(out_stocks_df['name'])]
+            if not out_stocks_df.is_empty() and not existing_df.is_empty():
+                existing_out_stocks = existing_df.filter(pl.col('name').is_in(out_stocks_df['name'].to_list()))
             else:
-                existing_out_stocks = pd.DataFrame()
+                existing_out_stocks = pl.DataFrame(schema=existing_df.schema if not existing_df.is_empty() else None)
         else:
-            existing_out_stocks = pd.DataFrame()
+            existing_out_stocks = pl.DataFrame()
         
-        if not existing_out_stocks.empty and not new_stocks_df.empty:
-            combined_df = pd.concat([new_stocks_df, existing_out_stocks], ignore_index=True)
-        elif not new_stocks_df.empty:
-            combined_df = new_stocks_df
-        elif not existing_out_stocks.empty:
-            combined_df = existing_out_stocks
+        dfs_to_concat = [d for d in [new_stocks_df, existing_out_stocks] if not d.is_empty()]
+        if dfs_to_concat:
+            combined_df = pl.concat(dfs_to_concat, how='diagonal')
         else:
-            combined_df = pd.DataFrame()
+            combined_df = pl.DataFrame()
         
-        if not combined_df.empty:
-            combined_df = combined_df.drop_duplicates(subset=['name'], keep='first')
-            combined_df = combined_df.sort_values(by='name')
+        if not combined_df.is_empty():
+            combined_df = combined_df.unique(subset=['name'], keep='first').sort('name')
         
         UniverseManager.universe_folder_path.mkdir(parents=True, exist_ok=True)
-        if not combined_df.empty:
-            combined_df.to_csv(long_csv_path, index=False)
-            combined_df['name'].to_csv(short_csv_path, index=False)
+        if not combined_df.is_empty():
+            combined_df.write_csv(long_csv_path)
+            combined_df.select('name').write_csv(short_csv_path)
         else:
-            pd.DataFrame(columns=UniverseManager.long_file_vars).to_csv(long_csv_path, index=False)
-            pd.DataFrame(columns=["name"]).to_csv(short_csv_path, index=False)
+            pl.DataFrame(schema={col: pl.String for col in UniverseManager.long_file_vars}).write_csv(long_csv_path)
+            pl.DataFrame(schema={'name': pl.String}).write_csv(short_csv_path)
 
-        before_stocks_list = existing_df['name'].tolist() if not existing_df.empty else []
-        after_stocks_list = combined_df['name'].tolist() if not combined_df.empty else []
+        before_stocks_list = existing_df['name'].to_list() if not existing_df.is_empty() and 'name' in existing_df.columns else []
+        after_stocks_list = combined_df['name'].to_list() if not combined_df.is_empty() and 'name' in combined_df.columns else []
         added_stocks = list(set(after_stocks_list) - set(before_stocks_list))
         removed_stocks = list(set(before_stocks_list) - set(after_stocks_list))
 
@@ -192,13 +192,13 @@ class UniverseManager:
         if not os.path.exists(csv_path):
             raise FileNotFoundError(f"Universe CSV file for code {universe_code} not found.")
 
-        df = pd.read_csv(csv_path, keep_default_na=False)
-        if df.empty:
+        df = pl.read_csv(csv_path, null_values=[])
+        if df.is_empty():
             return []
-        return df['name'].tolist()
+        return df['name'].to_list()
     
     @staticmethod
-    def return_universe_quotes_raw(universe_code: str) -> tuple[pd.DataFrame|None, list]:
+    def return_universe_quotes_raw(universe_code: str) -> tuple[pl.DataFrame|None, list]:
         """
         Return the raw DataFrame of stock quotes for a universe.
 
@@ -209,7 +209,7 @@ class UniverseManager:
 
         Returns
         -------
-        tuple[Optional[pd.DataFrame], list[str]]
+        tuple[Optional[pl.DataFrame], list[str]]
             a tuple containing a DataFrame of stock quotes if successful, otherwise None,
             and a list of error messages encountered during the process.
         """
@@ -250,5 +250,5 @@ class UniverseManager:
             error_messages.append(f"No quotes retrieved for universe {universe_code}.")
             return (None,error_messages)
 
-        quotes_df = pd.json_normalize(list_of_quotes)
+        quotes_df = pl.from_pandas(pd.json_normalize(list_of_quotes))
         return (quotes_df,error_messages)

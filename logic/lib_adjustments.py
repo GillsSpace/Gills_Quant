@@ -1,7 +1,7 @@
 import os
 import json
 import numpy as np
-import pandas as pd
+import polars as pl
 import xarray as xr
 from pathlib import Path
 
@@ -78,16 +78,15 @@ def extract_db_dividends(zarr_store: xr.Dataset, symbol: str) -> list:
     """
     try:
         ds_1d = zarr_store['1d'].sel(ident=symbol)
-        div_ex_dates = ds_1d.sel(fVar='fundamental.divExDate').to_pandas()
-        div_amounts = ds_1d.sel(fVar='fundamental.divPayAmount').to_pandas()
-        
-        valid_mask = div_ex_dates.notna() & div_amounts.notna()
-        div_ex_dates = div_ex_dates[valid_mask]
-        div_amounts = div_amounts[valid_mask]
+        days = [str(d) for d in ds_1d.day.values]
+        div_ex_dates = ds_1d.sel(fVar='fundamental.divExDate').values
+        div_amounts = ds_1d.sel(fVar='fundamental.divPayAmount').values
         
         dividends = []
         seen_dates = set()
-        for day, ex_date_num in div_ex_dates.items():
+        for day, ex_date_num, amount in zip(days, div_ex_dates, div_amounts):
+            if np.isnan(ex_date_num) or np.isnan(amount) or amount <= 0:
+                continue
             val = int(ex_date_num)
             year = val // 10000
             month = (val % 10000) // 100
@@ -98,32 +97,31 @@ def extract_db_dividends(zarr_store: xr.Dataset, symbol: str) -> list:
             
             if ex_date_str not in seen_dates:
                 seen_dates.add(ex_date_str)
-                amount = div_amounts.loc[day]
-                if amount > 0:
-                    dividends.append({'date': ex_date_str, 'amount': amount})
+                dividends.append({'date': ex_date_str, 'amount': amount})
         return dividends
     except Exception as e:
         print(f"Error extracting DB dividends for {symbol}: {e}")
         return []
 
-def calculate_adjustment_factors(close_prices: pd.Series, splits: list, dividends: list) -> pd.Series:
+def calculate_adjustment_factors(close_prices: pl.DataFrame, splits: list, dividends: list) -> pl.DataFrame:
     """
     Calculates cumulative backward-adjustment factors based on ex-dates of corporate actions.
+    Expects close_prices to be a Polars DataFrame with columns ['day', 'close'].
     """
-    factors = pd.Series(1.0, index=close_prices.index)
+    days = close_prices['day'].to_list()
+    closes = close_prices['close'].to_list()
+    factors = [1.0] * len(days)
     
     split_map = {s['date']: s['ratio'] for s in splits}
     div_map = {d['date']: d['amount'] for d in dividends}
     
     cum_factor = 1.0
-    days = close_prices.index.tolist()
     
     for i in range(len(days) - 1, -1, -1):
         day = days[i]
-        factors.iloc[i] = cum_factor
+        factors[i] = cum_factor
         
         # Adjustment applies to all days PRIOR to the ex-dividend / split date.
-        # Check if today is the ex-date, update the cumulative multiplier for next iteration.
         if day in split_map:
             ratio = split_map[day]
             if ratio > 0:
@@ -132,37 +130,59 @@ def calculate_adjustment_factors(close_prices: pd.Series, splits: list, dividend
         if day in div_map:
             div_amount = div_map[day]
             if i > 0:
-                prev_close = close_prices.iloc[i - 1]
-                if not np.isnan(prev_close) and prev_close > 0:
+                prev_close = closes[i - 1]
+                if prev_close is not None and not np.isnan(prev_close) and prev_close > 0:
                     mult = 1.0 - div_amount / prev_close
                     if mult > 0:
                         cum_factor *= mult
                     
-    return factors
+    return pl.DataFrame({'day': days, 'factor': factors})
 
-def get_adjusted_prices(zarr_store: xr.Dataset, symbol: str, price_var: str = 'quote.mark', use_alpaca: bool = False) -> tuple[pd.Series, pd.Series]:
+def get_adjusted_prices(zarr_store: xr.Dataset, symbol: str, price_var: str = 'quote.mark', use_alpaca: bool = False) -> tuple[pl.Series, pl.Series]:
     """
-    Returns the raw and adjusted price series for a symbol.
+    Returns the raw and adjusted price series for a symbol as Polars Series.
+    """
+    # 1. Load raw prices from 5m array
+    da_5m = zarr_store['5m'].sel(ident=symbol, qVar=price_var)
+    days = [str(d) for d in da_5m.day.values]
+    times = [str(t) for t in da_5m.time.values]
+    raw_matrix = da_5m.values  # shape: (num_days, num_times)
     
-    Returns:
-        (raw_prices, adjusted_prices) as pandas Series.
-    """
-    # 1. Load raw prices
-    raw_5m = zarr_store['5m'].sel(ident=symbol, qVar=price_var).stack(timeline=('day', 'time')).to_pandas()
-    # Normalize index to timezone-naive datetimes
-    raw_5m.index = pd.to_datetime([f"{d} {t}" for d, t in raw_5m.index])
+    day_col = []
+    time_col = []
+    val_col = []
+    for d_idx, d in enumerate(days):
+        for t_idx, t in enumerate(times):
+            day_col.append(d)
+            time_col.append(t)
+            val_col.append(raw_matrix[d_idx, t_idx])
+            
+    raw_df = pl.DataFrame({
+        'day': day_col,
+        'time': time_col,
+        'raw': val_col
+    })
     
     # 2. Get daily close prices
-    close_prices = zarr_store['1d'].sel(ident=symbol, fVar='quote.closePrice').to_pandas().dropna()
-    if close_prices.empty:
-        return raw_5m, raw_5m  # No historical daily data, return raw
+    da_1d = zarr_store['1d'].sel(ident=symbol, fVar='quote.closePrice')
+    close_days = [str(d) for d in da_1d.day.values]
+    close_vals = da_1d.values
+    
+    valid_mask = ~np.isnan(close_vals)
+    close_df = pl.DataFrame({
+        'day': [d for d, v in zip(close_days, valid_mask) if v],
+        'close': [v for v, m in zip(close_vals, valid_mask) if m]
+    })
+    
+    if close_df.is_empty():
+        return raw_df['raw'], raw_df['raw']  # No historical daily data, return raw
         
     # 3. Retrieve corporate actions
     splits = []
     dividends = []
     if use_alpaca and HAS_ALPACA:
-        start_date = close_prices.index[0]
-        end_date = close_prices.index[-1]
+        start_date = close_df['day'][0]
+        end_date = close_df['day'][-1]
         try:
             splits, dividends = get_alpaca_corporate_actions(symbol, start_date, end_date)
         except Exception as e:
@@ -172,17 +192,13 @@ def get_adjusted_prices(zarr_store: xr.Dataset, symbol: str, price_var: str = 'q
         dividends = extract_db_dividends(zarr_store, symbol)
         
     # 4. Calculate adjustment factors
-    daily_factors = calculate_adjustment_factors(close_prices, splits, dividends)
+    factors_df = calculate_adjustment_factors(close_df, splits, dividends)
     
     # 5. Broadcast daily factors to 5-minute ticks
-    # Create a mapping from day string 'YYYY-MM-DD' to factor
-    factor_map = daily_factors.to_dict()
+    merged_df = raw_df.join(factors_df, on='day', how='left').with_columns(
+        pl.col('factor').fill_null(1.0)
+    )
     
-    # Map index dates back to the factors
-    tick_days = raw_5m.index.strftime('%Y-%m-%d')
-    tick_factors = tick_days.map(factor_map).fillna(1.0)
+    adjusted_5m = merged_df['raw'] * merged_df['factor']
     
-    # Apply adjustments
-    adjusted_5m = raw_5m * tick_factors
-    
-    return raw_5m, adjusted_5m
+    return merged_df['raw'], adjusted_5m
