@@ -4,57 +4,6 @@ import numpy as np
 import polars as pl
 import xarray as xr
 from pathlib import Path
-from logic.lib_clients import create_client_alpaca_corporate_actions
-
-def get_alpaca_corporate_actions(symbol: str, start_date: str, end_date: str) -> tuple[list, list]:
-    """
-    Fetches split and dividend corporate actions from Alpaca for a given symbol.
-    """
-    try:
-        from alpaca.data.requests import CorporateActionsRequest
-        client = create_client_alpaca_corporate_actions()
-        
-        request = CorporateActionsRequest(
-            symbols=[symbol],
-            start=start_date,
-            end=end_date
-        )
-        
-        raw_data = client.get_corporate_actions(request)
-        
-        splits = []
-        dividends = []
-        actions = []
-        if isinstance(raw_data, dict):
-            for k, v in raw_data.items():
-                if isinstance(v, list):
-                    actions.extend(v)
-        elif isinstance(raw_data, list):
-            actions = raw_data
-            
-        for act in actions:
-            ex_date = act.get('ex_date')
-            if not ex_date:
-                continue
-            
-            act_type = act.get('action_type')
-            if act_type in ('split', 'forward_split', 'reverse_split'):
-                new_rate = float(act.get('new_rate') or 1)
-                old_rate = float(act.get('old_rate') or 1)
-                ratio = new_rate / old_rate if old_rate != 0 else 1.0
-                splits.append({'date': str(ex_date)[:10], 'ratio': ratio})
-            elif act_type == 'stock_dividend':
-                rate = float(act.get('rate') or 0)
-                if rate > 0:
-                    splits.append({'date': str(ex_date)[:10], 'ratio': 1.0 + rate})
-            elif act_type in ('dividend', 'cash_dividend'):
-                amount = float(act.get('amount') or 0)
-                dividends.append({'date': str(ex_date)[:10], 'amount': amount})
-                
-        return splits, dividends
-    except Exception as e:
-        print(f"Alpaca Corporate Actions failed for {symbol}: {e}")
-        return [], []
 
 def extract_db_corporate_actions(zarr_store: xr.Dataset, symbol: str) -> tuple[list, list]:
     """
@@ -182,12 +131,6 @@ def get_adjusted_prices(zarr_store: xr.Dataset, symbol: str, price_var: str = 'q
     # 3. Retrieve corporate actions from native local DB store
     splits, dividends = extract_db_corporate_actions(zarr_store, symbol)
     
-    # Fallback to live Alpaca lookup if DB store has no recorded corporate actions
-    if not splits and not dividends:
-        start_date = close_df['day'][0]
-        end_date = close_df['day'][-1]
-        splits, dividends = get_alpaca_corporate_actions(symbol, start_date, end_date)
-        
     # 4. Calculate adjustment factors
     factors_df = calculate_adjustment_factors(close_df, splits, dividends)
     
