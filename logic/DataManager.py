@@ -171,6 +171,7 @@ class DataManager:
         'INDEX',
         'EQUITY',
         'COMMON',
+        'OEF',
     ], ordered=True)
 
     fundamental_exchange_dtype = CategoricalDtype(categories=[
@@ -182,6 +183,7 @@ class DataManager:
         'Z',
         'B',
         'V',
+        '3',
     ], ordered=True)
 
     def __init__(self):
