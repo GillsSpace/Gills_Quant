@@ -232,7 +232,11 @@ class TestDataManager(unittest.TestCase):
         ds_write = xr.Dataset({"1d": (["day", "ident", "fVar"], slice_1d)})
         ds_write.to_zarr(DataManager.hot_path_db, region={"day": slice(0, 1)}, mode="r+")
 
-        DataManager.save_corporate_actions_for_day("2026-08-01", use_alpaca=False)
+        with patch("logic.lib_clients.create_client_alpaca_corporate_actions") as mock_client_func:
+            mock_client = MagicMock()
+            mock_client.get_corporate_actions.side_effect = Exception("Alpaca API unavailable")
+            mock_client_func.return_value = mock_client
+            DataManager.save_corporate_actions_for_day("2026-08-01")
 
         ds_after = xr.open_zarr(DataManager.hot_path_db)
         div_written = ds_after["1d"].sel(day="2026-08-01", ident="AAPL", fVar="corporate.divAmount").values.item()
@@ -245,11 +249,13 @@ class TestDataManager(unittest.TestCase):
         mock_return_univ.return_value = ["AAPL"]
         DataManager.create_new_db("2026-08-01")
 
-        with patch("alpaca.data.historical.corporate_actions.CorporateActionsClient.get_corporate_actions") as mock_alpaca:
-            mock_alpaca.return_value = {
+        with patch("logic.lib_clients.create_client_alpaca_corporate_actions") as mock_client_func:
+            mock_client = MagicMock()
+            mock_client.get_corporate_actions.return_value = {
                 'stock_dividends': [{'symbol': 'AAPL', 'ex_date': '2026-08-01', 'rate': 0.05}]
             }
-            DataManager.save_corporate_actions_for_day("2026-08-01", use_alpaca=True)
+            mock_client_func.return_value = mock_client
+            DataManager.save_corporate_actions_for_day("2026-08-01")
 
         ds_after = xr.open_zarr(DataManager.hot_path_db)
         split_written = ds_after["1d"].sel(day="2026-08-01", ident="AAPL", fVar="corporate.splitRatio").values.item()

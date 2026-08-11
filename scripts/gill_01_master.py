@@ -43,6 +43,7 @@ def main():
         next_day = (datetime_rounded + timedelta(days=1)).strftime("%Y-%m-%d")
         UM.regen_csv('u00')
         dm.add_db_day_shell(next_day)
+        dm.backfill_missing_days_and_corporate_actions()
         dm.retention_trim_db()
 
     if time_str == '23:45':

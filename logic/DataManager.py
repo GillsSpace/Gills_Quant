@@ -159,31 +159,31 @@ class DataManager:
     ], ordered=True)
 
     fundamental_assetSubType_dtype = CategoricalDtype(categories=[
-        'ADR',
-        'COE',
-        'PRF',
-        'UIT',
-        'CEF',
-        'ETF',
-        'ETN',
-        'MUTUAL_FUND',
-        'MMF',
-        'INDEX',
-        'EQUITY',
-        'COMMON',
-        'OEF',
+        'ADR',          # American Depositary Receipt
+        'COE',          # Capital Obligation / Equity-linked Instrument
+        'PRF',          # Preferred Stock
+        'UIT',          # Unit Investment Trust
+        'CEF',          # Closed-End Fund
+        'ETF',          # Exchange-Traded Fund
+        'ETN',          # Exchange-Traded Note
+        'MUTUAL_FUND',  # Open-End Mutual Fund
+        'MMF',          # Money Market Fund
+        'INDEX',        # Index / Benchmark
+        'EQUITY',       # Equity Security
+        'COMMON',       # Common Stock
+        'OEF',          # Open-End Fund
     ], ordered=True)
 
     fundamental_exchange_dtype = CategoricalDtype(categories=[
-        'N',
-        'A',
-        '9',
-        'P',
-        'Q',
-        'Z',
-        'B',
-        'V',
-        '3',
+        'N',  # New York Stock Exchange (NYSE)
+        'A',  # NYSE American (AMEX)
+        '9',  # NYSE Arca
+        'P',  # NYSE Arca (Pacific)
+        'Q',  # NASDAQ (Global Select / Global / Capital)
+        'Z',  # BATS / Cboe BZX Exchange
+        'B',  # NASDAQ BX (Boston)
+        'V',  # IEX (Investors Exchange)
+        '3',  # Third Market / OTC Bulletin Board
     ], ordered=True)
 
     def __init__(self):
@@ -1028,7 +1028,7 @@ class DataManager:
         DataManager.retention_trim_db()  # Trim any old data if restore failed to prevent issues with old chunks
 
     @staticmethod
-    def save_corporate_actions_for_day(day, use_alpaca=True):
+    def save_corporate_actions_for_day(day):
         """
         Fetches corporate actions (splits and dividends) from Alpaca or local fallback
         and writes them into the Zarr database for the given day.
@@ -1055,61 +1055,51 @@ class DataManager:
             splits_map = {}
             divs_map = {}
             
-            from logic.lib_adjustments import HAS_ALPACA
-            if use_alpaca and HAS_ALPACA:
-                try:
-                    from logic.lib_adjustments import get_alpaca_corporate_actions
-                    from alpaca.data.historical.corporate_actions import CorporateActionsClient
-                    from alpaca.data.requests import CorporateActionsRequest
-                    
-                    creds_file = Path(__file__).resolve().parent.parent / 'secrets' / 'keys.json'
-                    if creds_file.exists():
-                        with open(creds_file, 'r') as f:
-                            keys = json.load(f)
-                        alpaca_key = keys['alpaca']['key']
-                        alpaca_secret = keys['alpaca']['secret']
-                        
-                        client = CorporateActionsClient(alpaca_key, alpaca_secret, raw_data=True)
-                        batch_size = 100
-                        for i in range(0, len(existing_idents), batch_size):
-                            batch = existing_idents[i:i+batch_size]
-                            request = CorporateActionsRequest(
-                                symbols=batch,
-                                start=day,
-                                end=day
-                            )
-                            raw_data = client.get_corporate_actions(request)
-                            if isinstance(raw_data, dict):
-                                target_day = str(day)[:10]
-                                # Process dividends
-                                for div in raw_data.get('cash_dividends', []):
-                                    ex_date = str(div.get('ex_date') or '')[:10]
-                                    if ex_date == target_day:
-                                        val = float(div.get('rate') or div.get('amount') or 0)
-                                        divs_map[div.get('symbol')] = val
-                                # Process forward splits
-                                for spl in raw_data.get('forward_splits', []):
-                                    ex_date = str(spl.get('ex_date') or '')[:10]
-                                    if ex_date == target_day:
-                                        new_rate = float(spl.get('new_rate') or 1)
-                                        old_rate = float(spl.get('old_rate') or 1)
-                                        splits_map[spl.get('symbol')] = new_rate / old_rate if old_rate != 0 else 1.0
-                                # Process reverse splits
-                                for spl in raw_data.get('reverse_splits', []):
-                                    ex_date = str(spl.get('ex_date') or '')[:10]
-                                    if ex_date == target_day:
-                                        new_rate = float(spl.get('new_rate') or 1)
-                                        old_rate = float(spl.get('old_rate') or 1)
-                                        splits_map[spl.get('symbol')] = new_rate / old_rate if old_rate != 0 else 1.0
-                                # Process stock dividends (dilutes price like forward split)
-                                for div in raw_data.get('stock_dividends', []):
-                                    ex_date = str(div.get('ex_date') or '')[:10]
-                                    if ex_date == target_day:
-                                        rate = float(div.get('rate') or 0)
-                                        if rate > 0:
-                                            splits_map[div.get('symbol')] = 1.0 + rate
-                except Exception as e:
-                    print(f"Alpaca query failed for {day}: {e}")
+            try:
+                from logic.lib_clients import create_client_alpaca_corporate_actions
+                from alpaca.data.requests import CorporateActionsRequest
+                
+                client = create_client_alpaca_corporate_actions()
+                batch_size = 100
+                for i in range(0, len(existing_idents), batch_size):
+                    batch = existing_idents[i:i+batch_size]
+                    request = CorporateActionsRequest(
+                        symbols=batch,
+                        start=day,
+                        end=day
+                    )
+                    raw_data = client.get_corporate_actions(request)
+                    if isinstance(raw_data, dict):
+                        target_day = str(day)[:10]
+                        # Process dividends
+                        for div in raw_data.get('cash_dividends', []):
+                            ex_date = str(div.get('ex_date') or '')[:10]
+                            if ex_date == target_day:
+                                val = float(div.get('rate') or div.get('amount') or 0)
+                                divs_map[div.get('symbol')] = val
+                        # Process forward splits
+                        for spl in raw_data.get('forward_splits', []):
+                            ex_date = str(spl.get('ex_date') or '')[:10]
+                            if ex_date == target_day:
+                                new_rate = float(spl.get('new_rate') or 1)
+                                old_rate = float(spl.get('old_rate') or 1)
+                                splits_map[spl.get('symbol')] = new_rate / old_rate if old_rate != 0 else 1.0
+                        # Process reverse splits
+                        for spl in raw_data.get('reverse_splits', []):
+                            ex_date = str(spl.get('ex_date') or '')[:10]
+                            if ex_date == target_day:
+                                new_rate = float(spl.get('new_rate') or 1)
+                                old_rate = float(spl.get('old_rate') or 1)
+                                splits_map[spl.get('symbol')] = new_rate / old_rate if old_rate != 0 else 1.0
+                        # Process stock dividends (dilutes price like forward split)
+                        for div in raw_data.get('stock_dividends', []):
+                            ex_date = str(div.get('ex_date') or '')[:10]
+                            if ex_date == target_day:
+                                rate = float(div.get('rate') or 0)
+                                if rate > 0:
+                                    splits_map[div.get('symbol')] = 1.0 + rate
+            except Exception as e:
+                print(f"Alpaca query failed for {day}: {e}")
 
             div_ex_col_idx = DataManager.fundamental_fields.index('fundamental.divExDate')
             div_amt_col_idx = DataManager.fundamental_fields.index('fundamental.divPayAmount')
@@ -1188,4 +1178,4 @@ class DataManager:
 
         for day in missing_days:
             DataManager.add_db_day_shell(day)
-            DataManager.save_corporate_actions_for_day(day, use_alpaca=True)
+            DataManager.save_corporate_actions_for_day(day)

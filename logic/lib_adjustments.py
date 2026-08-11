@@ -4,104 +4,105 @@ import numpy as np
 import polars as pl
 import xarray as xr
 from pathlib import Path
-
-# Try importing Alpaca if available
-try:
-    from alpaca.data.historical.corporate_actions import CorporateActionsClient
-    from alpaca.data.requests import CorporateActionsRequest
-    HAS_ALPACA = True
-except ImportError:
-    HAS_ALPACA = False
+from logic.lib_clients import create_client_alpaca_corporate_actions
 
 def get_alpaca_corporate_actions(symbol: str, start_date: str, end_date: str) -> tuple[list, list]:
     """
     Fetches split and dividend corporate actions from Alpaca for a given symbol.
     """
-    if not HAS_ALPACA:
-        raise ImportError("Alpaca Python SDK is not installed. Please install it using 'pip install alpaca-py'.")
+    try:
+        from alpaca.data.requests import CorporateActionsRequest
+        client = create_client_alpaca_corporate_actions()
+        
+        request = CorporateActionsRequest(
+            symbols=[symbol],
+            start=start_date,
+            end=end_date
+        )
+        
+        raw_data = client.get_corporate_actions(request)
+        
+        splits = []
+        dividends = []
+        actions = []
+        if isinstance(raw_data, dict):
+            for k, v in raw_data.items():
+                if isinstance(v, list):
+                    actions.extend(v)
+        elif isinstance(raw_data, list):
+            actions = raw_data
+            
+        for act in actions:
+            ex_date = act.get('ex_date')
+            if not ex_date:
+                continue
+            
+            act_type = act.get('action_type')
+            if act_type in ('split', 'forward_split', 'reverse_split'):
+                new_rate = float(act.get('new_rate') or 1)
+                old_rate = float(act.get('old_rate') or 1)
+                ratio = new_rate / old_rate if old_rate != 0 else 1.0
+                splits.append({'date': str(ex_date)[:10], 'ratio': ratio})
+            elif act_type == 'stock_dividend':
+                rate = float(act.get('rate') or 0)
+                if rate > 0:
+                    splits.append({'date': str(ex_date)[:10], 'ratio': 1.0 + rate})
+            elif act_type in ('dividend', 'cash_dividend'):
+                amount = float(act.get('amount') or 0)
+                dividends.append({'date': str(ex_date)[:10], 'amount': amount})
+                
+        return splits, dividends
+    except Exception as e:
+        print(f"Alpaca Corporate Actions failed for {symbol}: {e}")
+        return [], []
 
-    creds_file = Path(__file__).resolve().parent.parent / 'secrets' / 'keys.json'
-    if not creds_file.exists():
-        raise FileNotFoundError("secrets/keys.json not found.")
-        
-    with open(creds_file, 'r') as f:
-        keys = json.load(f)
-        
-    alpaca_key = keys['alpaca']['key']
-    alpaca_secret = keys['alpaca']['secret']
-    
-    client = CorporateActionsClient(alpaca_key, alpaca_secret, raw_data=True)
-    
-    request = CorporateActionsRequest(
-        symbols=[symbol],
-        start=start_date,
-        end=end_date
-    )
-    
-    raw_data = client.get_corporate_actions(request)
-    
+def extract_db_corporate_actions(zarr_store: xr.Dataset, symbol: str) -> tuple[list, list]:
+    """
+    Extracts corporate split ratios and dividend amounts directly from the local native Zarr DB store.
+    """
     splits = []
     dividends = []
-    
-    actions = []
-    if isinstance(raw_data, dict):
-        for k, v in raw_data.items():
-            if isinstance(v, list):
-                actions.extend(v)
-    elif isinstance(raw_data, list):
-        actions = raw_data
-        
-    for act in actions:
-        ex_date = act.get('ex_date')
-        if not ex_date:
-            continue
-        
-        act_type = act.get('action_type')
-        if act_type in ('split', 'forward_split', 'reverse_split'):
-            new_rate = float(act.get('new_rate') or 1)
-            old_rate = float(act.get('old_rate') or 1)
-            ratio = new_rate / old_rate if old_rate != 0 else 1.0
-            splits.append({'date': ex_date, 'ratio': ratio})
-        elif act_type == 'stock_dividend':
-            rate = float(act.get('rate') or 0)
-            if rate > 0:
-                splits.append({'date': ex_date, 'ratio': 1.0 + rate})
-        elif act_type in ('dividend', 'cash_dividend'):
-            amount = float(act.get('amount') or 0)
-            dividends.append({'date': ex_date, 'amount': amount})
-            
-    return splits, dividends
-
-def extract_db_dividends(zarr_store: xr.Dataset, symbol: str) -> list:
-    """
-    Extracts dividend ex-dates and amounts from local daily database metadata.
-    """
     try:
         ds_1d = zarr_store['1d'].sel(ident=symbol)
         days = [str(d) for d in ds_1d.day.values]
-        div_ex_dates = ds_1d.sel(fVar='fundamental.divExDate').values
-        div_amounts = ds_1d.sel(fVar='fundamental.divPayAmount').values
         
-        dividends = []
-        seen_dates = set()
-        for day, ex_date_num, amount in zip(days, div_ex_dates, div_amounts):
-            if np.isnan(ex_date_num) or np.isnan(amount) or amount <= 0:
-                continue
-            val = int(ex_date_num)
-            year = val // 10000
-            month = (val % 10000) // 100
-            day_num = val % 100
-            if year < 1900 or month < 1 or month > 12 or day_num < 1 or day_num > 31:
-                continue
-            ex_date_str = f"{year:04d}-{month:02d}-{day_num:02d}"
-            
-            if ex_date_str not in seen_dates:
-                seen_dates.add(ex_date_str)
-                dividends.append({'date': ex_date_str, 'amount': amount})
-        return dividends
+        # 1. Read corporate splits if column exists
+        if 'corporate.splitRatio' in ds_1d.fVar.values:
+            split_ratios = ds_1d.sel(fVar='corporate.splitRatio').values
+            for day, ratio in zip(days, split_ratios):
+                if not np.isnan(ratio) and ratio > 0 and abs(ratio - 1.0) > 1e-4:
+                    splits.append({'date': day, 'ratio': ratio})
+                    
+        # 2. Read corporate dividend amounts if column exists
+        if 'corporate.divAmount' in ds_1d.fVar.values:
+            div_amounts = ds_1d.sel(fVar='corporate.divAmount').values
+            for day, amount in zip(days, div_amounts):
+                if not np.isnan(amount) and amount > 0:
+                    dividends.append({'date': day, 'amount': amount})
+                    
+        # Fallback for dividend ex-dates if corporate.divAmount was empty
+        if not dividends and 'fundamental.divExDate' in ds_1d.fVar.values and 'fundamental.divPayAmount' in ds_1d.fVar.values:
+            div_ex_dates = ds_1d.sel(fVar='fundamental.divExDate').values
+            div_amounts = ds_1d.sel(fVar='fundamental.divPayAmount').values
+            seen_dates = set()
+            for day, ex_date_num, amount in zip(days, div_ex_dates, div_amounts):
+                if np.isnan(ex_date_num) or np.isnan(amount) or amount <= 0:
+                    continue
+                val = int(ex_date_num)
+                year = val // 10000
+                month = (val % 10000) // 100
+                day_num = val % 100
+                if year < 1900 or month < 1 or month > 12 or day_num < 1 or day_num > 31:
+                    continue
+                ex_date_str = f"{year:04d}-{month:02d}-{day_num:02d}"
+                if ex_date_str not in seen_dates:
+                    seen_dates.add(ex_date_str)
+                    dividends.append({'date': ex_date_str, 'amount': amount})
+                    
     except Exception as e:
-        print(f"Error extracting DB dividends for {symbol}: {e}")
-        return []
+        print(f"Error extracting DB corporate actions for {symbol}: {e}")
+        
+    return splits, dividends
 
 def calculate_adjustment_factors(close_prices: pl.DataFrame, splits: list, dividends: list) -> pl.DataFrame:
     """
@@ -138,9 +139,10 @@ def calculate_adjustment_factors(close_prices: pl.DataFrame, splits: list, divid
                     
     return pl.DataFrame({'day': days, 'factor': factors})
 
-def get_adjusted_prices(zarr_store: xr.Dataset, symbol: str, price_var: str = 'quote.mark', use_alpaca: bool = False) -> tuple[pl.Series, pl.Series]:
+def get_adjusted_prices(zarr_store: xr.Dataset, symbol: str, price_var: str = 'quote.mark') -> tuple[pl.Series, pl.Series]:
     """
-    Returns the raw and adjusted price series for a symbol as Polars Series.
+    Returns the raw and adjusted price series for a symbol as Polars Series,
+    calculating adjustment factors directly from the native local Zarr DB store.
     """
     # 1. Load raw prices from 5m array
     da_5m = zarr_store['5m'].sel(ident=symbol, qVar=price_var)
@@ -177,19 +179,14 @@ def get_adjusted_prices(zarr_store: xr.Dataset, symbol: str, price_var: str = 'q
     if close_df.is_empty():
         return raw_df['raw'], raw_df['raw']  # No historical daily data, return raw
         
-    # 3. Retrieve corporate actions
-    splits = []
-    dividends = []
-    if use_alpaca and HAS_ALPACA:
+    # 3. Retrieve corporate actions from native local DB store
+    splits, dividends = extract_db_corporate_actions(zarr_store, symbol)
+    
+    # Fallback to live Alpaca lookup if DB store has no recorded corporate actions
+    if not splits and not dividends:
         start_date = close_df['day'][0]
         end_date = close_df['day'][-1]
-        try:
-            splits, dividends = get_alpaca_corporate_actions(symbol, start_date, end_date)
-        except Exception as e:
-            print(f"Alpaca Corporate Actions failed for {symbol}: {e}. Falling back to DB dividends only.")
-            dividends = extract_db_dividends(zarr_store, symbol)
-    else:
-        dividends = extract_db_dividends(zarr_store, symbol)
+        splits, dividends = get_alpaca_corporate_actions(symbol, start_date, end_date)
         
     # 4. Calculate adjustment factors
     factors_df = calculate_adjustment_factors(close_df, splits, dividends)

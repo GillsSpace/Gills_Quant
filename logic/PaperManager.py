@@ -56,16 +56,10 @@ class PaperManager:
     @staticmethod
     def _create_alpaca_client():
         """
-        Creates and returns an Alpaca client using the alpaca-trade-api library.
+        Creates and returns an Alpaca TradingClient using lib_clients helper.
         """
-        creds_file = Path(__file__).resolve().parent.parent / 'secrets' / 'keys.json'
-        with open(creds_file, 'r') as f:
-            keys = json.load(f)
-
-        alpaca_key = keys['alpaca']['key']
-        alpaca_secret = keys['alpaca']['secret']
-
-        return TradingClient(alpaca_key, alpaca_secret, paper=True)
+        from logic.lib_clients import create_client_alpaca_trading
+        return create_client_alpaca_trading(paper=True)
     
     @staticmethod
     def execute_paper_trading(time):
