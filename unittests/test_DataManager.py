@@ -183,9 +183,11 @@ class TestDataManager(unittest.TestCase):
         self.assertEqual(val, 150.5)
         ds.close()
 
+    @patch("logic.lib_edgar.fetch_sec_company_facts", return_value={})
+    @patch("logic.lib_edgar.get_ticker_cik_map", return_value={})
     @patch("logic.DataManager.UM.return_universe_quotes_raw")
     @patch("logic.DataManager.UM.return_universe_list")
-    def test_save_fVar_data_success(self, mock_return_univ, mock_raw_quotes):
+    def test_save_fVar_data_success(self, mock_return_univ, mock_raw_quotes, mock_cik_map, mock_facts):
         """save_fVar_data writes 1d fundamental fields to Zarr database."""
         mock_return_univ.return_value = ["AAPL"]
         DataManager.create_new_db("2026-08-01")
@@ -458,8 +460,10 @@ class TestDataManager(unittest.TestCase):
         ds.close()
         self.assertTrue(mock_save_ca.called)
 
+    @patch("logic.lib_edgar.fetch_sec_company_facts", return_value={})
+    @patch("logic.lib_edgar.get_ticker_cik_map", return_value={})
     @patch("logic.DataManager.UM.return_universe_list")
-    def test_has_fundamental_data(self, mock_return_univ):
+    def test_has_fundamental_data(self, mock_return_univ, mock_cik_map, mock_facts):
         """has_fundamental_data returns False for empty NaN shells and True once populated."""
         mock_return_univ.return_value = ["AAPL"]
         DataManager.create_new_db("2026-08-01")
@@ -483,6 +487,40 @@ class TestDataManager(unittest.TestCase):
             DataManager.save_fVar_data("2026-08-01")
 
         self.assertTrue(DataManager.has_fundamental_data("2026-08-01"))
+
+    @patch("logic.lib_edgar.read_current_edgar_data")
+    @patch("logic.DataManager.UM.return_universe_quotes_raw")
+    @patch("logic.DataManager.UM.return_universe_list")
+    def test_save_fVar_data_non_stock_and_missing_cik(self, mock_return_univ, mock_raw_quotes, mock_edgar_df):
+        """save_fVar_data handles ETFs, Funds, ADRs and symbols without SEC CIK entries cleanly."""
+        mock_return_univ.return_value = ["SPY", "AAPL", "UNK_TICKER"]
+        mock_edgar_df.return_value = pl.DataFrame([{"ident": "AAPL", "revenue": 1000000.0}])
+        DataManager.create_new_db("2026-08-01")
+
+        df_fundamentals = pl.DataFrame([
+            {"ident": "SPY", "quote.closePrice": 500.0, "assetSubType": "ETF", "reference.exchange": "9"},
+            {"ident": "AAPL", "quote.closePrice": 150.0, "assetSubType": "EQUITY", "reference.exchange": "Q"},
+            {"ident": "UNK_TICKER", "quote.closePrice": 10.0, "assetSubType": "MUTUAL_FUND", "reference.exchange": "N"}
+        ])
+        mock_raw_quotes.return_value = (df_fundamentals, [])
+
+        # Should execute cleanly without raising TypeError or KeyError
+        DataManager.save_fVar_data("2026-08-01")
+
+        ds = xr.open_zarr(DataManager.hot_path_db)
+        spy_close = ds["1d"].sel(day="2026-08-01", ident="SPY", fVar="quote.closePrice").values.item()
+        self.assertEqual(spy_close, 500.0)
+        ds.close()
+
+    @patch("logic.lib_edgar.urllib.request.urlopen")
+    def test_update_ticker_cik_map(self, mock_urlopen):
+        """Test update_ticker_cik_map with max_retries handling."""
+        from logic.lib_edgar import update_ticker_cik_map
+        mock_resp = patch("urllib.request.urlopen").start()
+        mock_resp.return_value.__enter__.return_value.read.return_value = b'{"0": {"cik_str": 320193, "ticker": "AAPL", "title": "Apple Inc."}}'
+        res = update_ticker_cik_map(max_retries=1)
+        self.assertIn("AAPL", res)
+        patch.stopall()
 
 
 if __name__ == "__main__":

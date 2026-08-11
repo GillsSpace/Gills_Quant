@@ -35,9 +35,12 @@ def extract_db_corporate_actions(zarr_store: xr.Dataset, symbol: str) -> tuple[l
             div_amounts = ds_1d.sel(fVar='fundamental.divPayAmount').values
             seen_dates = set()
             for day, ex_date_num, amount in zip(days, div_ex_dates, div_amounts):
-                if np.isnan(ex_date_num) or np.isnan(amount) or amount <= 0:
+                if np.isnan(ex_date_num) or np.isinf(ex_date_num) or np.isnan(amount) or amount <= 0:
                     continue
-                val = int(ex_date_num)
+                try:
+                    val = int(ex_date_num)
+                except (ValueError, OverflowError):
+                    continue
                 year = val // 10000
                 month = (val % 10000) // 100
                 day_num = val % 100

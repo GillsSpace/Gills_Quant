@@ -85,7 +85,68 @@ class DataManager:
     F_NEXT_DIV_EX_DATE = 'fundamental.nextDivExDate'
     F_NEXT_DIV_PAY_DATE = 'fundamental.nextDivPayDate'
     F_PE_RATIO = 'fundamental.peRatio'
+    F_FUND_LEVERAGE_FACTOR = 'fundamental.fundLeverageFactor'
     F_CLOSE_PRICE = 'quote.closePrice'
+    C_SPLIT_RATIO = 'corporate.splitRatio'
+    C_DIV_AMOUNT = 'corporate.divAmount'
+
+    # SEC EDGAR Fundamental Constants
+    F_FILING_DATE = 'fundamental.filingDate'
+    F_PERIOD_END_DATE = 'fundamental.periodEndDate'
+    F_REVENUE = 'fundamental.revenue'
+    F_COST_OF_GOODS_SOLD = 'fundamental.costOfGoodsSold'
+    F_GROSS_PROFIT = 'fundamental.grossProfit'
+    F_OPERATING_EXPENSES = 'fundamental.operatingExpenses'
+    F_RESEARCH_AND_DEVELOPMENT = 'fundamental.researchAndDevelopment'
+    F_SELLING_GENERAL_ADMIN = 'fundamental.sellingGeneralAdmin'
+    F_OPERATING_INCOME = 'fundamental.operatingIncome'
+    F_INTEREST_EXPENSE = 'fundamental.interestExpense'
+    F_PRETAX_INCOME = 'fundamental.pretaxIncome'
+    F_INCOME_TAX_EXPENSE = 'fundamental.incomeTaxExpense'
+    F_NET_INCOME = 'fundamental.netIncome'
+    F_DEPRECIATION_AMORTIZATION = 'fundamental.depreciationAmortization'
+    F_EBITDA = 'fundamental.ebitda'
+    F_EPS_BASIC = 'fundamental.epsBasic'
+    F_EPS_DILUTED = 'fundamental.epsDiluted'
+    F_SHARES_DILUTED = 'fundamental.sharesDiluted'
+    F_CASH_AND_EQUIVALENTS = 'fundamental.cashAndEquivalents'
+    F_SHORT_TERM_INVESTMENTS = 'fundamental.shortTermInvestments'
+    F_ACCOUNTS_RECEIVABLE = 'fundamental.accountsReceivable'
+    F_INVENTORY = 'fundamental.inventory'
+    F_CURRENT_ASSETS = 'fundamental.currentAssets'
+    F_PP_AND_E_NET = 'fundamental.ppAndENet'
+    F_GOODWILL = 'fundamental.goodwill'
+    F_INTANGIBLE_ASSETS = 'fundamental.intangibleAssets'
+    F_NON_CURRENT_ASSETS = 'fundamental.nonCurrentAssets'
+    F_TOTAL_ASSETS = 'fundamental.totalAssets'
+    F_ACCOUNTS_PAYABLE = 'fundamental.accountsPayable'
+    F_SHORT_TERM_DEBT = 'fundamental.shortTermDebt'
+    F_CURRENT_LIABILITIES = 'fundamental.currentLiabilities'
+    F_LONG_TERM_DEBT = 'fundamental.longTermDebt'
+    F_NON_CURRENT_LIABILITIES = 'fundamental.nonCurrentLiabilities'
+    F_TOTAL_LIABILITIES = 'fundamental.totalLiabilities'
+    F_COMMON_STOCK = 'fundamental.commonStock'
+    F_RETAINED_EARNINGS = 'fundamental.retainedEarnings'
+    F_STOCKHOLDERS_EQUITY = 'fundamental.stockholdersEquity'
+    F_NET_DEBT = 'fundamental.netDebt'
+    F_OPERATING_CASH_FLOW = 'fundamental.operatingCashFlow'
+    F_CAPITAL_EXPENDITURES = 'fundamental.capitalExpenditures'
+    F_FREE_CASH_FLOW = 'fundamental.freeCashFlow'
+    F_INVESTING_CASH_FLOW = 'fundamental.investingCashFlow'
+    F_FINANCING_CASH_FLOW = 'fundamental.financingCashFlow'
+    F_DIVIDENDS_PAID = 'fundamental.dividendsPaid'
+    F_SHARE_REPURCHASES = 'fundamental.shareRepurchases'
+    F_DEBT_ISSUANCE = 'fundamental.debtIssuance'
+    F_DEBT_REPAYMENT = 'fundamental.debtRepayment'
+    F_NET_CHANGE_IN_CASH = 'fundamental.netChangeInCash'
+    F_GROSS_MARGIN = 'fundamental.grossMargin'
+    F_OPERATING_MARGIN = 'fundamental.operatingMargin'
+    F_PROFIT_MARGIN = 'fundamental.profitMargin'
+    F_ROE = 'fundamental.roe'
+    F_ROA = 'fundamental.roa'
+    F_CURRENT_RATIO = 'fundamental.currentRatio'
+    F_QUICK_RATIO = 'fundamental.quickRatio'
+    F_DEBT_TO_EQUITY = 'fundamental.debtToEquity'
 
     quote_fields = [
         'reference.htbRate',
@@ -148,6 +209,63 @@ class DataManager:
         'quote.closePrice',
         'corporate.splitRatio',
         'corporate.divAmount',
+        # SEC EDGAR Fundamental Fields:
+        'fundamental.filingDate',
+        'fundamental.periodEndDate',
+        'fundamental.revenue',
+        'fundamental.costOfGoodsSold',
+        'fundamental.grossProfit',
+        'fundamental.operatingExpenses',
+        'fundamental.researchAndDevelopment',
+        'fundamental.sellingGeneralAdmin',
+        'fundamental.operatingIncome',
+        'fundamental.interestExpense',
+        'fundamental.pretaxIncome',
+        'fundamental.incomeTaxExpense',
+        'fundamental.netIncome',
+        'fundamental.depreciationAmortization',
+        'fundamental.ebitda',
+        'fundamental.epsBasic',
+        'fundamental.epsDiluted',
+        'fundamental.sharesDiluted',
+        'fundamental.cashAndEquivalents',
+        'fundamental.shortTermInvestments',
+        'fundamental.accountsReceivable',
+        'fundamental.inventory',
+        'fundamental.currentAssets',
+        'fundamental.ppAndENet',
+        'fundamental.goodwill',
+        'fundamental.intangibleAssets',
+        'fundamental.nonCurrentAssets',
+        'fundamental.totalAssets',
+        'fundamental.accountsPayable',
+        'fundamental.shortTermDebt',
+        'fundamental.currentLiabilities',
+        'fundamental.longTermDebt',
+        'fundamental.nonCurrentLiabilities',
+        'fundamental.totalLiabilities',
+        'fundamental.commonStock',
+        'fundamental.retainedEarnings',
+        'fundamental.stockholdersEquity',
+        'fundamental.netDebt',
+        'fundamental.operatingCashFlow',
+        'fundamental.capitalExpenditures',
+        'fundamental.freeCashFlow',
+        'fundamental.investingCashFlow',
+        'fundamental.financingCashFlow',
+        'fundamental.dividendsPaid',
+        'fundamental.shareRepurchases',
+        'fundamental.debtIssuance',
+        'fundamental.debtRepayment',
+        'fundamental.netChangeInCash',
+        'fundamental.grossMargin',
+        'fundamental.operatingMargin',
+        'fundamental.profitMargin',
+        'fundamental.roe',
+        'fundamental.roa',
+        'fundamental.currentRatio',
+        'fundamental.quickRatio',
+        'fundamental.debtToEquity',
     ]
 
     quote_securityStatus_dtype = CategoricalDtype(categories=[
@@ -476,7 +594,8 @@ class DataManager:
         # Custom Data Cleaning:
         date_cols = [
             'fundamental.declarationDate', 'fundamental.divExDate', 'fundamental.divPayDate',
-            'fundamental.lastEarningsDate', 'fundamental.nextDivExDate', 'fundamental.nextDivPayDate'
+            'fundamental.lastEarningsDate', 'fundamental.nextDivExDate', 'fundamental.nextDivPayDate',
+            'fundamental.filingDate', 'fundamental.periodEndDate'
         ]
         for col in date_cols:
             fundamentals_df = fundamentals_df.with_columns(
@@ -501,8 +620,45 @@ class DataManager:
         exchange_map = {cat: float(i) for i, cat in enumerate(valid_exchanges)}
 
         fundamentals_df = fundamentals_df.with_columns([
-            pl.col('assetSubType').replace_strict(subtype_map, default=np.nan).alias('assetSubType'),
-            pl.col('reference.exchange').replace_strict(exchange_map, default=np.nan).alias('reference.exchange')
+            pl.col('assetSubType').cast(pl.Utf8).replace_strict(subtype_map, default=np.nan).alias('assetSubType'),
+            pl.col('reference.exchange').cast(pl.Utf8).replace_strict(exchange_map, default=np.nan).alias('reference.exchange')
+        ])
+
+        # Populate SEC EDGAR Fundamental Data for Stock Symbols from local Parquet cache (<5ms)
+        try:
+            from logic.lib_edgar import read_current_edgar_data
+            edgar_df = read_current_edgar_data()
+            if not edgar_df.is_empty() and 'ident' in edgar_df.columns:
+                stock_idents = fundamentals_df['ident'].to_list()
+                sec_field_cols = [c for c in DataManager.fundamental_fields if c.startswith('fundamental.') and c not in date_cols]
+                
+                # Convert edgar_df rows to a symbol dict
+                sec_data_by_symbol = {}
+                for row in edgar_df.to_dicts():
+                    sym = row.get('ident')
+                    if sym:
+                        sec_data_by_symbol[sym] = row
+
+                def _is_valid_num(v):
+                    if v is None:
+                        return False
+                    try:
+                        return not np.isnan(float(v))
+                    except (ValueError, TypeError):
+                        return False
+
+                for sec_field in sec_field_cols:
+                    field_key = sec_field.replace('fundamental.', '')
+                    raw_updates = [sec_data_by_symbol.get(sym, {}).get(field_key, np.nan) for sym in stock_idents]
+                    if any(_is_valid_num(v) for v in raw_updates):
+                        safe_updates = [float(v) if _is_valid_num(v) else np.nan for v in raw_updates]
+                        fundamentals_df = fundamentals_df.with_columns(pl.Series(sec_field, safe_updates))
+        except Exception as e:
+            print(f"SEC EDGAR integration warning for {day}: {e}")
+
+        # Cast all fundamental numerical fields to Float64
+        fundamentals_df = fundamentals_df.with_columns([
+            pl.col(c).cast(pl.Float64, strict=False).alias(c) for c in DataManager.fundamental_fields
         ])
 
         fundamentals_df = fundamentals_df.select(['ident'] + DataManager.fundamental_fields)
@@ -649,6 +805,11 @@ class DataManager:
 
             # Swap safely
             DataManager._safe_replace_zarr(temp_backup_path, backup_path)
+
+            # Backup current_edgar_data.parquet to cold storage
+            current_edgar_file = DataManager.data_path / 'current_edgar_data.parquet'
+            if current_edgar_file.exists():
+                shutil.copy2(current_edgar_file, DataManager.cold_path / 'current_edgar_data_backup.parquet')
 
         except Exception as e:
             print(f"Error creating cold backup for {year}-{int(month):02d}: {e}")
@@ -1049,9 +1210,6 @@ class DataManager:
             current_fVar_slice = ds_disk['1d'].sel(day=day).values.copy()
             
             # Indices of the corporate action columns
-            split_col_idx = DataManager.fundamental_fields.index('corporate.splitRatio')
-            div_col_idx = DataManager.fundamental_fields.index('corporate.divAmount')
-            
             splits_map = {}
             divs_map = {}
             
@@ -1101,36 +1259,41 @@ class DataManager:
             except Exception as e:
                 print(f"Alpaca query failed for {day}: {e}")
 
-            div_ex_col_idx = DataManager.fundamental_fields.index('fundamental.divExDate')
-            div_amt_col_idx = DataManager.fundamental_fields.index('fundamental.divPayAmount')
-            
+            store_fvars = [str(f) for f in ds_disk.fVar.values]
+            split_col_idx = store_fvars.index('corporate.splitRatio') if 'corporate.splitRatio' in store_fvars else -1
+            div_col_idx = store_fvars.index('corporate.divAmount') if 'corporate.divAmount' in store_fvars else -1
+            div_ex_col_idx = store_fvars.index('fundamental.divExDate') if 'fundamental.divExDate' in store_fvars else -1
+            div_amt_col_idx = store_fvars.index('fundamental.divPayAmount') if 'fundamental.divPayAmount' in store_fvars else -1
+
             for idx, symbol in enumerate(existing_idents):
                 has_action = False
-                if symbol in splits_map:
+                if symbol in splits_map and split_col_idx != -1:
                     current_fVar_slice[idx, split_col_idx] = splits_map[symbol]
                     has_action = True
-                else:
+                elif split_col_idx != -1:
                     current_fVar_slice[idx, split_col_idx] = np.nan
                     
-                if symbol in divs_map:
+                if symbol in divs_map and div_col_idx != -1:
                     current_fVar_slice[idx, div_col_idx] = divs_map[symbol]
                     has_action = True
-                else:
+                elif div_col_idx != -1:
                     # Fallback to local Schwab data:
                     try:
-                        ex_date_num = current_fVar_slice[idx, div_ex_col_idx]
-                        if not np.isnan(ex_date_num):
-                            ex_date_int = int(ex_date_num)
-                            day_clean = str(day)[:10].replace('-', '')
-                            if day_clean.isdigit() and ex_date_int == int(day_clean):
-                                amount = current_fVar_slice[idx, div_amt_col_idx]
-                                if not np.isnan(amount) and amount > 0:
-                                    current_fVar_slice[idx, div_col_idx] = amount
-                                    has_action = True
+                        if div_ex_col_idx != -1:
+                            ex_date_num = current_fVar_slice[idx, div_ex_col_idx]
+                            if not np.isnan(ex_date_num) and not np.isinf(ex_date_num):
+                                ex_date_int = int(ex_date_num)
+                                day_clean = str(day)[:10].replace('-', '')
+                                if day_clean.isdigit() and ex_date_int == int(day_clean):
+                                    if div_amt_col_idx != -1:
+                                        amount = current_fVar_slice[idx, div_amt_col_idx]
+                                        if not np.isnan(amount) and amount > 0:
+                                            current_fVar_slice[idx, div_col_idx] = amount
+                                            has_action = True
                     except:
                         pass
                     
-                    if not has_action:
+                    if not has_action and div_col_idx != -1:
                         current_fVar_slice[idx, div_col_idx] = np.nan
 
             region_to_update = {

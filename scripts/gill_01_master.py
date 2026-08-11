@@ -11,6 +11,7 @@ from logic.DataManager import DataManager as DM
 from logic.PaperManager import PaperManager as PM
 from logic.lib_time import *
 from logic.lib_notifications import *
+from logic.lib_edgar import update_ticker_cik_map, detect_todays_filing_symbols, update_current_edgar_data_file
 
 WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 
@@ -24,7 +25,7 @@ def main():
     time_str = datetime_rounded.strftime("%H:%M")
     day_of_week = datetime_rounded.strftime("%A")
 
-    extra_print_times = time_str in ['23:40', '23:45']
+    extra_print_times = time_str in ['03:15', '03:20', '03:25', '23:40', '23:45']
 
     #Always Run:
     if extra_print_times:
@@ -35,6 +36,26 @@ def main():
     dm = DM()
     dm.save_qVar_data(date_str, time_str)
     #PM.execute_paper_trading(time_str)
+
+    if time_str == '03:15':
+        update_ticker_cik_map(max_retries=5)
+
+    if time_str == '03:20':
+        detect_todays_filing_symbols(max_retries=5)
+
+    if time_str == '03:25':
+        update_current_edgar_data_file(max_retries=5)
+
+    if time_str == '04:00':
+        dm.save_fVar_data(date_str)
+        dm.save_corporate_actions_for_day(date_str)
+
+    if time_str == '04:30':
+        if not dm.has_fundamental_data(date_str):
+            print(f"\n\tRetrying fundamental data fetch for {date_str} at 04:30...")
+            update_current_edgar_data_file(max_retries=5)
+            dm.save_fVar_data(date_str)
+            dm.save_corporate_actions_for_day(date_str)
 
     if time_str in return_time_str_range(start='09:30', end='16:00') and day_of_week in WEEKDAYS:
         pass
@@ -54,17 +75,7 @@ def main():
         dm.make_month_cold_backup(month=prev_month, year=prev_year, overwrite_existing=True)
 
     if time_str == '23:55':
-        send_daily_notification()
-
-    if time_str == '04:00':
-        dm.save_fVar_data(date_str)
-        dm.save_corporate_actions_for_day(date_str)
-
-    if time_str == '04:30':
-        if not dm.has_fundamental_data(date_str):
-            print(f"\n\tRetrying fundamental data fetch for {date_str} at 04:30...")
-            dm.save_fVar_data(date_str)
-            dm.save_corporate_actions_for_day(date_str)
+        send_daily_notification()    
 
     et = tm.time()
     total_time = et - st
