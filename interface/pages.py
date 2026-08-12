@@ -1,4 +1,4 @@
-from flask import Flask, Blueprint, render_template
+from flask import Flask, Blueprint, render_template, request, jsonify, redirect
 from datetime import datetime, timedelta, timezone
 import os
 
@@ -26,8 +26,32 @@ def home():
     stats = get_dashboard_stats()
     
     return render_template('pages/home.html', tokens=token_str, stats=stats)
-from interface.libs.lib_metrics import get_daily_metrics_stats
+from interface.libs.lib_metrics import get_daily_metrics_stats, get_single_day_metrics_summary
 
+
+def compute_fundamental_status(day_str, fundamentals_collected):
+    if fundamentals_collected:
+        return {'label': 'Collected (04:00 AM)', 'color': 'var(--accent-emerald)'}
+        
+    now = datetime.now()
+    try:
+        target_date = datetime.strptime(str(day_str), '%Y-%m-%d').date()
+        today_date = now.date()
+        
+        if today_date < target_date:
+            return {'label': 'Pending (04:00 AM)', 'color': 'var(--card-sub-color)'}
+        elif today_date == target_date:
+            cur_m = now.hour * 60 + now.minute
+            if cur_m < 4 * 60:
+                return {'label': 'Pending (04:00 AM)', 'color': 'var(--card-sub-color)'}
+            elif cur_m < 4 * 60 + 30:
+                return {'label': 'Retrying (04:30 AM)', 'color': 'var(--accent-gold)'}
+            else:
+                return {'label': 'Failed / Missing', 'color': '#ef4444'}
+        else:
+            return {'label': 'Failed / Missing', 'color': '#ef4444'}
+    except Exception:
+        return {'label': 'Pending (04:00 AM)', 'color': 'var(--card-sub-color)'}
 
 @bp.route('/database')
 def database():
@@ -68,6 +92,35 @@ def database():
                 'htb_nan_percent': day_stats[d]['htb_nan_percent']
             })
             
+        today_day = chronological_days[-1]
+        yesterday_day = chronological_days[-2] if len(chronological_days) > 1 else today_day
+        
+        today_stats = get_single_day_metrics_summary(ds, today_day)
+        yesterday_stats = get_single_day_metrics_summary(ds, yesterday_day)
+        
+        today_status_info = compute_fundamental_status(today_day, today_stats['fundamentals_collected'])
+        today_stats['fundamental_label'] = today_status_info['label']
+        today_stats['fundamental_color'] = today_status_info['color']
+        
+        yesterday_status_info = compute_fundamental_status(yesterday_day, yesterday_stats['fundamentals_collected'])
+        yesterday_stats['fundamental_label'] = yesterday_status_info['label']
+        yesterday_stats['fundamental_color'] = yesterday_status_info['color']
+            
+        # Calculate Cold Storage specs
+        cold_dir = DataManager.cold_path
+        cold_size_bytes = 0
+        cold_zarr_files = []
+        if os.path.exists(cold_dir):
+            for dirpath, dirnames, filenames in os.walk(cold_dir):
+                for f in filenames:
+                    fp = os.path.join(dirpath, f)
+                    if os.path.exists(fp):
+                        cold_size_bytes += os.path.getsize(fp)
+            cold_zarr_files = sorted([f for f in os.listdir(cold_dir) if f.startswith('master_db_month__')])
+            
+        cold_months_count = len(cold_zarr_files)
+        cold_gb = round(cold_size_bytes / (1024 * 1024 * 1024), 3)
+            
         db_info = {
             'days': sorted(chronological_days, reverse=True),
             'days_json': json.dumps(chronological_days),
@@ -80,18 +133,24 @@ def database():
             'inactive_nan_percents_json': json.dumps([day_stats[d]['inactive_nan_percent'] for d in chronological_days]),
             'missed_nan_percents_json': json.dumps([day_stats[d]['missed_nan_percent'] for d in chronological_days]),
             'table_data': table_data,
+            'today_stats': today_stats,
+            'yesterday_stats': yesterday_stats,
             'idents': sorted([str(i) for i in ds.ident.values]),
             'qvars': sorted([str(q) for q in ds.qVar.values]),
             'fvars': sorted([str(f) for f in ds.fVar.values]),
             'num_days': len(ds.day),
+            'num_times': len(ds.time),
             'num_idents': len(ds.ident),
             'num_qvars': len(ds.qVar),
             'num_fvars': len(ds.fVar),
             'path': str(DataManager.hot_path_db),
-            'retention': DataManager.hot_data_retention_days
+            'retention': DataManager.hot_data_retention_days,
+            'cold_path': str(DataManager.cold_path),
+            'cold_size_gb': cold_gb,
+            'cold_months_count': cold_months_count
         }
         
-        # Calculate database size in GB
+        # Calculate hot database size in GB
         total_size = 0
         db_path = DataManager.hot_path_db
         if os.path.exists(db_path):
@@ -216,9 +275,35 @@ def get_ticker_stats(symbol):
         print(f"Error fetching stats for {symbol}: {e}")
         return {"error": str(e)}, 500
 
+from interface.libs.lib_logs import LOGS_DIR, get_cron_pipeline_matrix, get_symbol_change_logs, get_system_error_logs
+
 @bp.route('/dashboard')
 def dashboard():
     return render_template('pages/dashboard.html')
+
+@bp.route('/logs')
+def logs():
+    cron_matrix = get_cron_pipeline_matrix()
+    symbol_logs = get_symbol_change_logs(months_limit=6)
+    error_logs = get_system_error_logs()
+    return render_template('pages/logs.html', cron_matrix=cron_matrix, symbol_logs=symbol_logs, error_logs=error_logs)
+
+@bp.route('/api/logs/clear-cron-log', methods=['GET', 'POST'])
+def clear_cron_log():
+    temp_cron_file = os.path.join(LOGS_DIR, 'temp_cron_log.log')
+    try:
+        if os.path.exists(temp_cron_file):
+            with open(temp_cron_file, 'w') as f:
+                f.truncate(0)
+    except Exception as e:
+        print(f"Error clearing cron log: {e}")
+    return redirect('/logs')
+
+@bp.route('/api/diagnostics/ping')
+def api_diagnostics_ping():
+    from logic.lib_clients import ping_all_api_clients
+    res = ping_all_api_clients()
+    return jsonify(res)
 
 @bp.route('/settings')
 def settings():

@@ -31,15 +31,17 @@
         <!-- OVERVIEW TAB -->
         <div id="content-overview" class="tab-content">
             {% if db_info %}
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+            
+            <!-- ROW 1: STORAGE SPECS & DATASET STRUCTURE (3 CARDS) -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
                 
-                <!-- CARD 1: STORAGE SPECS -->
+                <!-- CARD 1: HOT STORAGE SPECS -->
                 <div class="quant-box border-blue">
                     <div class="quant-head">
-                        <div class="quant-title">STORAGE SPECS</div>
-                        <div class="quant-tag">DISK UTILIZATION</div>
+                        <div class="quant-title">HOT STORAGE SPECS</div>
+                        <div class="quant-tag">HOT ZARR STORE</div>
                     </div>
-                    <div class="quant-sub">Physical storage location, zarr format, and retention policy</div>
+                    <div class="quant-sub">Active database location, format, and retention policy</div>
                     <div class="quant-body">
                         <div class="metric-highlight">
                             <div class="metric-main-val">{{ db_info.db_size_gb }} GB</div>
@@ -48,22 +50,51 @@
                         <div class="quant-data-list">
                             <div class="quant-data-row">
                                 <span class="quant-data-label" data-tooltip="Consolidated Xarray Zarr storage engine optimized for ultra-fast time-series slicing.">Array Format</span>
-                                <span class="quant-data-val">Zarr (xarray consolidated)</span>
+                                <span class="quant-data-val">Zarr (xarray)</span>
                             </div>
                             <div class="quant-data-row">
-                                <span class="quant-data-label" data-tooltip="Data older than retention days is automatically trimmed during the 23:40 PM nightly routine.">Retention Policy</span>
+                                <span class="quant-data-label" data-tooltip="Data older than retention window is automatically trimmed during nightly cleanup.">Retention Policy</span>
                                 <span class="quant-data-val">{{ db_info.retention }} Days Window</span>
                             </div>
                             <div class="quant-data-row">
-                                <span class="quant-data-label" data-tooltip="Total historical day slices stored in hot Zarr database store.">Recorded Days</span>
+                                <span class="quant-data-label" data-tooltip="Total active day slices currently stored in hot database.">Recorded Days</span>
                                 <span class="quant-data-val">{{ db_info.num_days }} Days</span>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- CARD 2: DATASET STRUCTURE -->
-                <div class="quant-box border-emerald">
+                <!-- CARD 2: COLD STORAGE SPECS -->
+                <div class="quant-box border-blue">
+                    <div class="quant-head">
+                        <div class="quant-title">COLD STORAGE SPECS</div>
+                        <div class="quant-tag">COLD BACKUPS</div>
+                    </div>
+                    <div class="quant-sub">Archived monthly Zarr database stores and historical backups</div>
+                    <div class="quant-body">
+                        <div class="metric-highlight">
+                            <div class="metric-main-val">{{ db_info.cold_size_gb }} GB</div>
+                            <div class="metric-sub-text">Path: <span style="font-family: var(--font-mono); font-size: 0.8rem; word-break: break-all;">{{ db_info.cold_path }}</span></div>
+                        </div>
+                        <div class="quant-data-list">
+                            <div class="quant-data-row">
+                                <span class="quant-data-label" data-tooltip="Archived monthly Zarr database stores created during monthly cold backup routines.">Archived Months</span>
+                                <span class="quant-data-val">{{ db_info.cold_months_count }} Months</span>
+                            </div>
+                            <div class="quant-data-row">
+                                <span class="quant-data-label" data-tooltip="Format of monthly backup files stored in cold directory.">Backup Format</span>
+                                <span class="quant-data-val">Zarr Monthly Datasets</span>
+                            </div>
+                            <div class="quant-data-row">
+                                <span class="quant-data-label" data-tooltip="Status of SEC EDGAR corporate filings cold backup parquet store.">EDGAR Backup</span>
+                                <span class="quant-data-val" style="color: var(--accent-emerald);">Active</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CARD 3: DATASET STRUCTURE -->
+                <div class="quant-box border-blue">
                     <div class="quant-head">
                         <div class="quant-title">DATASET STRUCTURE</div>
                         <div class="quant-tag">2 ARRAYS</div>
@@ -78,7 +109,7 @@
                             <div class="quant-data-row" style="flex-direction: column; align-items: flex-start; gap: 0.25rem;">
                                 <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
                                     <span class="quant-data-label" style="color: var(--accent-blue);" data-tooltip="High-frequency 4D array updated every 5 minutes during market hours.">5m Quote Array (4D)</span>
-                                    <span class="quant-data-val">{{ db_info.num_days }}d × {{ db_info.num_idents }}s × {{ db_info.num_qvars }}v</span>
+                                    <span class="quant-data-val">{{ db_info.num_days }}d × {{ db_info.num_times }}t × {{ db_info.num_idents }}s × {{ db_info.num_qvars }}v</span>
                                 </div>
                                 <span style="font-size: 0.75rem; color: var(--card-sub-color); font-family: var(--font-mono);">Dimensions: [day, time, ident, qVar]</span>
                             </div>
@@ -92,6 +123,100 @@
                         </div>
                     </div>
                 </div>
+
+            </div>
+
+            <!-- SEPARATOR LINE -->
+            <div style="border-top: 1px solid var(--card-divider); margin: 2rem 0;"></div>
+
+            <!-- ROW 2: TODAY'S DB & YESTERDAY'S DB (2 CARDS) -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+
+                <!-- CARD 4: TODAY'S DB SUMMARY -->
+                {% if db_info.today_stats %}
+                <div class="quant-box border-blue">
+                    <div class="quant-head">
+                        <div class="quant-title">TODAY'S DB SUMMARY</div>
+                        <div class="quant-tag">{{ db_info.today_stats.day }}</div>
+                    </div>
+                    <div class="quant-sub">Operational metrics and high-frequency 5m ingestion stats for today</div>
+                    <div class="quant-body">
+                        <div class="metric-highlight">
+                            <div class="metric-main-val">{{ db_info.today_stats.times_collected }} / {{ db_info.today_stats.expected_times }} Bars</div>
+                            <div class="metric-sub-text">5m Ingestion (Max {{ db_info.today_stats.expected_times }} So Far Today)</div>
+                        </div>
+                        <div class="quant-data-list">
+                            <div class="quant-data-row">
+                                <span class="quant-data-label" data-tooltip="Status of fundamental dataset collection for today (updated daily at 04:00 AM).">Fundamental Data</span>
+                                <span class="quant-data-val" style="color: {{ db_info.today_stats.fundamental_color }};">{{ db_info.today_stats.fundamental_label }}</span>
+                            </div>
+                            <div class="quant-data-row">
+                                <span class="quant-data-label" data-tooltip="Number of 5-minute time slots collected today out of maximum expected so far today ({{ db_info.today_stats.expected_times }} max bars).">5m Time Slots</span>
+                                <span class="quant-data-val">{{ db_info.today_stats.times_collected }} / {{ db_info.today_stats.expected_times }}</span>
+                            </div>
+                            <div class="quant-data-row">
+                                <span class="quant-data-label" data-tooltip="Count of active tickers updating quote marks today out of total universe symbols.">Active Tickers</span>
+                                <span class="quant-data-val">{{ "{:,}".format(db_info.today_stats.active_tickers) }} / {{ "{:,}".format(db_info.today_stats.total_idents) }}</span>
+                            </div>
+                            <div class="quant-data-row">
+                                <span class="quant-data-label" data-tooltip="Percentage of active u00 universe tickers updating quote bars today.">Universe Fill Rate</span>
+                                <span class="quant-data-val" style="color: var(--accent-blue);">{{ db_info.today_stats.fill_rate }}%</span>
+                            </div>
+                            <div class="quant-data-row">
+                                <span class="quant-data-label" data-tooltip="Total Quote NaN density across all database symbols for today.">Quote NaN Density</span>
+                                <span class="quant-data-val" style="color: var(--accent-gold);">{{ db_info.today_stats.quote_nan_pct }}%</span>
+                            </div>
+                            <div class="quant-data-row">
+                                <span class="quant-data-label" data-tooltip="Total SEC EDGAR corporate filings detected and logged today.">EDGAR Filings</span>
+                                <span class="quant-data-val">{{ db_info.today_stats.edgar_filings }} Filings</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- CARD 5: YESTERDAY'S DB SUMMARY -->
+                {% if db_info.yesterday_stats %}
+                <div class="quant-box border-blue">
+                    <div class="quant-head">
+                        <div class="quant-title">YESTERDAY'S DB SUMMARY</div>
+                        <div class="quant-tag">{{ db_info.yesterday_stats.day }}</div>
+                    </div>
+                    <div class="quant-sub">Finalized dataset stats and 5m quote ingestion for yesterday</div>
+                    <div class="quant-body">
+                        <div class="metric-highlight">
+                            <div class="metric-main-val">{{ db_info.yesterday_stats.times_collected }} / {{ db_info.yesterday_stats.total_times }} Bars</div>
+                            <div class="metric-sub-text">Finalized Daily Record</div>
+                        </div>
+                        <div class="quant-data-list">
+                            <div class="quant-data-row">
+                                <span class="quant-data-label" data-tooltip="Status of fundamental dataset collection for yesterday.">Fundamental Data</span>
+                                <span class="quant-data-val" style="color: {{ db_info.yesterday_stats.fundamental_color }};">{{ db_info.yesterday_stats.fundamental_label }}</span>
+                            </div>
+                            <div class="quant-data-row">
+                                <span class="quant-data-label" data-tooltip="Number of 5-minute time slots collected yesterday out of 288 max daily bars.">5m Time Slots</span>
+                                <span class="quant-data-val">{{ db_info.yesterday_stats.times_collected }} / {{ db_info.yesterday_stats.total_times }}</span>
+                            </div>
+                            <div class="quant-data-row">
+                                <span class="quant-data-label" data-tooltip="Count of active tickers that updated quote marks yesterday out of total universe symbols.">Active Tickers</span>
+                                <span class="quant-data-val">{{ "{:,}".format(db_info.yesterday_stats.active_tickers) }} / {{ "{:,}".format(db_info.yesterday_stats.total_idents) }}</span>
+                            </div>
+                            <div class="quant-data-row">
+                                <span class="quant-data-label" data-tooltip="Percentage of active u00 universe tickers that updated quote bars yesterday.">Universe Fill Rate</span>
+                                <span class="quant-data-val" style="color: var(--accent-blue);">{{ db_info.yesterday_stats.fill_rate }}%</span>
+                            </div>
+                            <div class="quant-data-row">
+                                <span class="quant-data-label" data-tooltip="Total Quote NaN density across all database symbols for yesterday.">Quote NaN Density</span>
+                                <span class="quant-data-val" style="color: var(--accent-gold);">{{ db_info.yesterday_stats.quote_nan_pct }}%</span>
+                            </div>
+                            <div class="quant-data-row">
+                                <span class="quant-data-label" data-tooltip="Total SEC EDGAR corporate filings detected and logged yesterday.">EDGAR Filings</span>
+                                <span class="quant-data-val">{{ db_info.yesterday_stats.edgar_filings }} Filings</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
 
             </div>
             {% else %}
@@ -120,7 +245,7 @@
                 </div>
 
                 <!-- PLOTLY CHART 2: NULL/NAN DENSITY -->
-                <div class="quant-box border-gold">
+                <div class="quant-box border-blue">
                     <div class="quant-head">
                         <div class="quant-title">DATABASE NULL / NAN DENSITY (%)</div>
                         <div class="quant-tag">DATA INTEGRITY</div>
@@ -132,7 +257,7 @@
                 </div>
 
                 <!-- DAILY STATS TABLE -->
-                <div class="quant-box border-emerald">
+                <div class="quant-box border-blue">
                     <div class="quant-head">
                         <div class="quant-title">DAILY RECORDS SUMMARY</div>
                         <div class="quant-tag">LOG TABLE</div>
@@ -173,19 +298,19 @@
                                     {% for row in db_info.table_data %}
                                     <tr class="table-row">
                                         <td style="padding: 0.6rem 0.85rem; color: var(--card-val-color); font-family: var(--font-mono); font-size: 0.825rem; text-align: left;">{{ row.day }}</td>
-                                        <td style="padding: 0.6rem 0.85rem; color: var(--accent-blue); font-family: var(--font-mono); font-weight: 600; font-size: 0.825rem; text-align: right; font-variant-numeric: tabular-nums;">{{"{:,}".format(row.close_prices)}}</td>
-                                        <td style="padding: 0.6rem 0.85rem; color: var(--accent-gold); font-family: var(--font-mono); font-weight: 600; font-size: 0.825rem; text-align: right; font-variant-numeric: tabular-nums;">{{"{:,}".format(row.mark_tickers)}}</td>
-                                        <td style="padding: 0.6rem 0.85rem; color: var(--accent-emerald); font-family: var(--font-mono); font-weight: 600; font-size: 0.825rem; text-align: right; font-variant-numeric: tabular-nums;">{{ row.quote_nan_percent }}%</td>
-                                        <td style="padding: 0.6rem 0.85rem; color: var(--accent-blue); font-family: var(--font-mono); font-weight: 600; font-size: 0.825rem; text-align: right; font-variant-numeric: tabular-nums;">{{ row.extended_nan_percent }}%</td>
-                                        <td style="padding: 0.6rem 0.85rem; color: var(--accent-gold); font-family: var(--font-mono); font-weight: 600; font-size: 0.825rem; text-align: right; font-variant-numeric: tabular-nums;">{{ row.htb_nan_percent }}%</td>
-                                        <td style="padding: 0.6rem 0.85rem; color: #ef4444; font-family: var(--font-mono); font-weight: 600; font-size: 0.825rem; text-align: right; font-variant-numeric: tabular-nums;">{{ row.nan_percent }}%</td>
+                                        <td style="padding: 0.6rem 0.85rem; color: var(--card-val-color); font-family: var(--font-mono); font-weight: 500; font-size: 0.825rem; text-align: right; font-variant-numeric: tabular-nums;">{{"{:,}".format(row.close_prices)}}</td>
+                                        <td style="padding: 0.6rem 0.85rem; color: var(--card-val-color); font-family: var(--font-mono); font-weight: 500; font-size: 0.825rem; text-align: right; font-variant-numeric: tabular-nums;">{{"{:,}".format(row.mark_tickers)}}</td>
+                                        <td style="padding: 0.6rem 0.85rem; color: var(--card-val-color); font-family: var(--font-mono); font-weight: 500; font-size: 0.825rem; text-align: right; font-variant-numeric: tabular-nums;">{{ row.quote_nan_percent }}%</td>
+                                        <td style="padding: 0.6rem 0.85rem; color: var(--card-val-color); font-family: var(--font-mono); font-weight: 500; font-size: 0.825rem; text-align: right; font-variant-numeric: tabular-nums;">{{ row.extended_nan_percent }}%</td>
+                                        <td style="padding: 0.6rem 0.85rem; color: var(--card-val-color); font-family: var(--font-mono); font-weight: 500; font-size: 0.825rem; text-align: right; font-variant-numeric: tabular-nums;">{{ row.htb_nan_percent }}%</td>
+                                        <td style="padding: 0.6rem 0.85rem; color: var(--card-val-color); font-family: var(--font-mono); font-weight: 600; font-size: 0.825rem; text-align: right; font-variant-numeric: tabular-nums;">{{ row.nan_percent }}%</td>
                                         <td style="padding: 0.6rem 0.85rem; text-align: center;">
                                             {% if row.close_prices > 0 or row.mark_tickers > 0 %}
-                                            <span style="display: inline-block; font-family: var(--font-mono); font-size: 0.7rem; color: var(--accent-emerald); background-color: rgba(16, 185, 129, 0.12); padding: 0.15rem 0.5rem; border: 1px solid rgba(16, 185, 129, 0.3); text-transform: uppercase; letter-spacing: 0.05em;">
+                                            <span style="display: inline-block; font-family: var(--font-mono); font-size: 0.7rem; color: var(--accent-blue); background-color: rgba(47, 95, 166, 0.12); padding: 0.15rem 0.5rem; border: 1px solid rgba(47, 95, 166, 0.3); text-transform: uppercase; letter-spacing: 0.05em;">
                                                 Populated
                                             </span>
                                             {% else %}
-                                            <span style="display: inline-block; font-family: var(--font-mono); font-size: 0.7rem; color: #ef4444; background-color: rgba(239, 68, 68, 0.12); padding: 0.15rem 0.5rem; border: 1px solid rgba(239, 68, 68, 0.3); text-transform: uppercase; letter-spacing: 0.05em;">
+                                            <span style="display: inline-block; font-family: var(--font-mono); font-size: 0.7rem; color: var(--card-sub-color); background-color: rgba(255, 255, 255, 0.05); padding: 0.15rem 0.5rem; border: 1px solid var(--card-divider); text-transform: uppercase; letter-spacing: 0.05em;">
                                                 Empty
                                             </span>
                                             {% endif %}
@@ -194,6 +319,43 @@
                                     {% endfor %}
                                 </tbody>
                             </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SEC EDGAR & CORPORATE ACTIONS SUMMARY CARD -->
+                <div class="quant-box border-blue">
+                    <div class="quant-head">
+                        <div class="quant-title">SEC EDGAR &amp; CORPORATE ACTIONS INGESTION</div>
+                        <div class="quant-tag">INGESTION PERFORMANCE</div>
+                    </div>
+                    <div class="quant-sub">Live ingestion fill rate, NaN density, and corporate action events recorded for today ({{ db_info.today_stats.day }})</div>
+                    <div class="quant-body">
+                        <div class="metric-highlight">
+                            <div class="metric-main-val">{{ db_info.today_stats.fund_fill_rate }}% Populated</div>
+                            <div class="metric-sub-text">1d Fundamental Ingestion Fill Rate ({{ db_info.today_stats.fund_nan_pct }}% NaN Density)</div>
+                        </div>
+                        <div class="quant-data-list">
+                            <div class="quant-data-row">
+                                <span class="quant-data-label" data-tooltip="Total individual fundamental and corporate data cells processed per daily 1d dataset slice across 10,409 universe symbols.">Daily Datapoints Processed</span>
+                                <span class="quant-data-val">{{ "{:,}".format(db_info.today_stats.fund_total_cells) }} Cells / Day</span>
+                            </div>
+                            <div class="quant-data-row">
+                                <span class="quant-data-label" data-tooltip="Count of active cash dividend payment events recorded in corporate.divAmount for today from Alpaca CorporateActionsClient.">Cash Dividend Events</span>
+                                <span class="quant-data-val" style="color: var(--accent-emerald);">{{ db_info.today_stats.div_events }} Dividends Logged</span>
+                            </div>
+                            <div class="quant-data-row">
+                                <span class="quant-data-label" data-tooltip="Count of forward or reverse stock split ratio events recorded in corporate.splitRatio for today.">Stock Split Events</span>
+                                <span class="quant-data-val" style="color: var(--accent-blue);">{{ db_info.today_stats.split_events }} Stock Splits Logged</span>
+                            </div>
+                            <div class="quant-data-row">
+                                <span class="quant-data-label" data-tooltip="SEC 10-K, 10-Q, and 8-K filings detected during the 03:20 AM RSS feed scan for active u00 universe symbols.">SEC EDGAR Filings Matched</span>
+                                <span class="quant-data-val">{{ db_info.today_stats.edgar_filings }} Filings Logged</span>
+                            </div>
+                            <div class="quant-data-row">
+                                <span class="quant-data-label" data-tooltip="Local Parquet cache storing parsed SEC XBRL balance sheet, income statement, and cash flow facts.">XBRL Parquet Cache Engine</span>
+                                <span class="quant-data-val">data/current_edgar_data.parquet</span>
+                            </div>
                         </div>
                     </div>
                 </div>

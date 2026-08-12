@@ -109,12 +109,12 @@
             </div>
 
             <!-- CARD 3: CONNECTION STATUS -->
-            <div class="quant-box border-gold">
+            <div class="quant-box border-blue">
                 <div class="quant-head">
                     <div class="quant-title">API CONNECTIONS</div>
                     <div class="quant-tag">3 INTEGRATIONS</div>
                 </div>
-                <div class="quant-sub">Real-time data streaming and credential validity for all API feeds</div>
+                <div class="quant-sub">Real-time data streaming, latency diagnostics, and credential validity</div>
                 <div class="quant-body">
                     <div class="metric-highlight">
                         <div class="status-row">
@@ -131,17 +131,22 @@
 
                     <div class="quant-data-list" style="margin-top: 1rem;">
                         <div class="quant-data-row">
-                            <span class="quant-data-label" data-tooltip="Primary market data feed for 5-minute price quotes, level-1 bid/ask, and volume streaming via Schwab Developer OAuth API.">Schwab API (Primary Quotes)</span>
-                            <span class="quant-data-val green">Active (OAuth Token)</span>
+                            <span class="quant-data-label" data-tooltip="Primary market data feed for 5-minute price quotes, level-1 bid/ask, and volume streaming via Schwab Developer OAuth API.">Schwab API (Quotes)</span>
+                            <span id="schwab-ping-val" class="quant-data-val green">Active (OAuth Token)</span>
                         </div>
                         <div class="quant-data-row">
-                            <span class="quant-data-label" data-tooltip="Secondary execution &amp; corporate actions client configured via secrets/keys.json for paper trading and stock split/dividend events.">Alpaca API (Paper Trading)</span>
-                            <span class="quant-data-val blue">{{ stats.api_alpaca_status if stats else 'Active (Paper)' }}</span>
+                            <span class="quant-data-label" data-tooltip="Secondary execution &amp; corporate actions client configured via secrets/keys.json for paper trading and stock split/dividend events.">Alpaca API (Paper)</span>
+                            <span id="alpaca-ping-val" class="quant-data-val blue">Active (Paper)</span>
                         </div>
                         <div class="quant-data-row">
-                            <span class="quant-data-label" data-tooltip="SEC RSS feed reader (polled daily at 03:20 AM) detecting 10-K, 10-Q, and 8-K filings filed by universe symbols yesterday.">SEC EDGAR API (Filings Feed)</span>
-                            <span class="quant-data-val gold">{{ stats.api_edgar_status if stats else 'Active (RSS Feed)' }}</span>
+                            <span class="quant-data-label" data-tooltip="SEC RSS feed reader (polled daily at 03:20 AM) detecting 10-K, 10-Q, and 8-K filings filed by universe symbols yesterday.">SEC EDGAR (Filings)</span>
+                            <span id="edgar-ping-val" class="quant-data-val gold">Active (RSS Feed)</span>
                         </div>
+                    </div>
+
+                    <div style="margin-top: 1.25rem; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--card-divider); padding-top: 0.85rem;">
+                        <div id="ping-time-indicator" style="font-size: 0.725rem; color: var(--card-sub-color); font-family: var(--font-mono);"></div>
+                        <button id="ping-api-btn" onclick="pingApiFeeds()" class="quant-action-btn" style="width: auto;">⚡ Ping API Feeds</button>
                     </div>
                 </div>
             </div>
@@ -165,4 +170,50 @@
             background-color: var(--rose);
         }
     </style>
+
+    <script>
+        function pingApiFeeds() {
+            const btn = document.getElementById('ping-api-btn');
+            const schwabVal = document.getElementById('schwab-ping-val');
+            const alpacaVal = document.getElementById('alpaca-ping-val');
+            const edgarVal = document.getElementById('edgar-ping-val');
+            const timeInd = document.getElementById('ping-time-indicator');
+
+            if (btn) {
+                btn.disabled = true;
+                btn.innerText = '⏳ Pinging...';
+            }
+
+            fetch('/api/diagnostics/ping')
+                .then(res => res.json())
+                .then(data => {
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerText = '⚡ Ping API Feeds';
+                    }
+                    if (data.schwab) {
+                        schwabVal.innerText = data.schwab.status === 'ok' ? `200 OK (${data.schwab.latency_ms}ms)` : `Error (${data.schwab.message})`;
+                        schwabVal.style.color = data.schwab.status === 'ok' ? 'var(--accent-emerald)' : '#ef4444';
+                    }
+                    if (data.alpaca) {
+                        alpacaVal.innerText = data.alpaca.status === 'ok' ? `200 OK (${data.alpaca.latency_ms}ms)` : `Error (${data.alpaca.message})`;
+                        alpacaVal.style.color = data.alpaca.status === 'ok' ? 'var(--accent-blue)' : '#ef4444';
+                    }
+                    if (data.edgar) {
+                        edgarVal.innerText = data.edgar.status === 'ok' ? `200 OK (${data.edgar.latency_ms}ms)` : `Error (${data.edgar.message})`;
+                        edgarVal.style.color = data.edgar.status === 'ok' ? 'var(--accent-gold)' : '#ef4444';
+                    }
+                    if (timeInd && data.timestamp) {
+                        timeInd.innerText = `Last pinged: ${data.timestamp}`;
+                    }
+                })
+                .catch(err => {
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerText = '⚡ Ping API Feeds';
+                    }
+                    alert("Ping failed: " + err);
+                });
+        }
+    </script>
 {% endblock %}

@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+
+{% block title %}Logs &amp; System Operations{% endblock %}
+
+{% block content %}
+<div style="font-family: Georgia, Garamond, 'Times New Roman', Times, serif; max-width: 1200px; margin: 0 auto; padding: 1.5rem 0;">
+    
+    <!-- HEADER -->
+    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem;">
+        <h1 style="font-size: 2.5rem; font-weight: bold; color: var(--heading-color); font-style: normal;">System Logs &amp; Operations</h1>
+        <span class="quant-tag">SYSTEM LOGS</span>
+    </div>
+    <p style="color: var(--sub-color); font-size: 1.15rem; margin-bottom: 2rem; font-style: italic; line-height: 1.6;">
+        Real-time cron pipeline execution matrix, universe symbol turnover audit trail, and system error diagnostic feeds.
+    </p>
+
+    <!-- SECTION 1: CRON PIPELINE OPERATIONS MATRIX -->
+    <div class="quant-box border-blue" style="margin-bottom: 2rem;">
+        <div class="quant-head">
+            <div class="quant-title">CRON PIPELINE OPERATIONS MATRIX</div>
+            <div class="quant-tag">9 SCHEDULED ROUTINES</div>
+        </div>
+        <div class="quant-sub">Background automation schedule, ingestion scripts, and execution status</div>
+        <div class="quant-body" style="padding-top: 0.5rem;">
+            <div style="overflow-x: auto; margin-bottom: 1.5rem;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid var(--card-divider); color: var(--card-label-color); font-family: var(--font-disp); font-size: 0.775rem; text-transform: uppercase; letter-spacing: 0.08em;">
+                            <th style="padding: 0.65rem 0.85rem; text-align: left;">Schedule Time</th>
+                            <th style="padding: 0.65rem 0.85rem; text-align: left;">Routine Name</th>
+                            <th style="padding: 0.65rem 0.85rem; text-align: left;">Script / Method</th>
+                            <th style="padding: 0.65rem 0.85rem; text-align: left;">Description</th>
+                            <th style="padding: 0.65rem 0.85rem; text-align: center;">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for job in cron_matrix.jobs %}
+                        <tr class="table-row">
+                            <td style="padding: 0.65rem 0.85rem; color: var(--card-val-color); font-family: var(--font-mono); font-size: 0.825rem; font-weight: 600; white-space: nowrap;">{{ job.time }}</td>
+                            <td style="padding: 0.65rem 0.85rem; color: var(--accent-blue); font-family: var(--font-disp); font-weight: 700; font-size: 0.85rem;">{{ job.name }}</td>
+                            <td style="padding: 0.65rem 0.85rem; color: var(--card-sub-color); font-family: var(--font-mono); font-size: 0.775rem;">{{ job.script }}</td>
+                            <td style="padding: 0.65rem 0.85rem; color: var(--card-sub-color); font-family: var(--font-body); font-size: 0.85rem;">{{ job.description }}</td>
+                            <td style="padding: 0.65rem 0.85rem; text-align: center;">
+                                {% if job.status == 'Active' %}
+                                <span style="display: inline-block; font-family: var(--font-mono); font-size: 0.7rem; color: var(--accent-emerald); background-color: rgba(16, 185, 129, 0.12); padding: 0.15rem 0.5rem; border: 1px solid rgba(16, 185, 129, 0.3); text-transform: uppercase; letter-spacing: 0.05em;">Active</span>
+                                {% elif job.status == 'Completed' %}
+                                <span style="display: inline-block; font-family: var(--font-mono); font-size: 0.7rem; color: var(--accent-blue); background-color: rgba(47, 95, 166, 0.12); padding: 0.15rem 0.5rem; border: 1px solid rgba(47, 95, 166, 0.3); text-transform: uppercase; letter-spacing: 0.05em;">Completed</span>
+                                {% else %}
+                                <span style="display: inline-block; font-family: var(--font-mono); font-size: 0.7rem; color: var(--card-sub-color); background-color: rgba(255, 255, 255, 0.05); padding: 0.15rem 0.5rem; border: 1px solid var(--card-divider); text-transform: uppercase; letter-spacing: 0.05em;">{{ job.status }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div style="background-color: var(--card-bg); border: 1px solid var(--card-border); padding: 1rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+                    <div style="font-family: var(--font-disp); font-size: 0.775rem; color: var(--card-label-color); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700;">
+                        Recent Execution Run Log (temp_cron_log.log)
+                    </div>
+                    <form action="/api/logs/clear-cron-log" method="POST" style="margin: 0;" onsubmit="return confirm('Clear the contents of temp_cron_log.log?');">
+                        <button type="submit" class="quant-action-btn">🗑️ Clear Cron Log</button>
+                    </form>
+                </div>
+                <pre id="cron-log-console" style="margin: 0; font-family: var(--font-mono); font-size: 0.825rem; color: #38bdf8; background-color: #0d1117; padding: 0.85rem; border: 1px solid #1e293b; max-height: 220px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; line-height: 1.5;">{% if cron_matrix.cron_log_text %}{{ cron_matrix.cron_log_text }}{% else %}Log is empty.{% endif %}</pre>
+            </div>
+        </div>
+    </div>
+
+    <!-- SEPARATOR LINE -->
+    <div style="border-top: 1px solid var(--card-divider); margin: 2rem 0;"></div>
+
+    <!-- SECTION 2: SYMBOL CHANGE & UNIVERSE AUDIT TRAIL -->
+    <div class="quant-box border-blue" style="margin-bottom: 2rem;">
+        <div class="quant-head">
+            <div class="quant-title">UNIVERSE SYMBOL TURNOVER AUDIT LOG</div>
+            <div class="quant-tag">LAST 6 MONTHS ({{ symbol_logs|length }} ENTRIES)</div>
+        </div>
+        <div class="quant-sub">Historical log of symbol additions, removals, and universe regenerations from nightly 23:30 PM runs (scoped to last 6 months)</div>
+        <div class="quant-body">
+            <div style="margin-bottom: 1.25rem; display: flex; justify-content: flex-end;">
+                <input type="text" id="symbol-log-search" oninput="filterSymbolLogs()" placeholder="Search symbol or date (e.g. FISN, PARA)..." class="quant-search-input" style="width: 300px;">
+            </div>
+
+            <div id="symbol-logs-list" style="display: flex; flex-direction: column; gap: 0.75rem; max-height: 500px; overflow-y: auto; padding-right: 0.5rem;">
+                {% for entry in symbol_logs %}
+                <div class="symbol-log-card" data-search="{{ entry.timestamp }} {{ entry.text }}">
+                    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.35rem; flex-wrap: wrap; gap: 0.5rem;">
+                        <span style="font-family: var(--font-mono); font-size: 0.825rem; font-weight: 700; color: var(--card-val-color);">{{ entry.timestamp }}</span>
+                        <span style="font-family: var(--font-mono); font-size: 0.725rem; color: var(--card-sub-color);">{{ entry.file }}</span>
+                    </div>
+
+                    {% if entry.type == 'add' %}
+                    <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.25rem;">
+                        <span style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--accent-emerald); background-color: rgba(16, 185, 129, 0.15); padding: 0.15rem 0.5rem; border: 1px solid rgba(16, 185, 129, 0.3); font-weight: bold; text-transform: uppercase;">+ ADDED {{ entry.added_count }}</span>
+                        <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
+                            {% for sym in entry.added_symbols %}
+                            <span class="quant-ticker-tag" style="padding: 0.15rem 0.45rem; font-size: 0.775rem; border-color: rgba(16, 185, 129, 0.4); color: var(--accent-emerald);">{{ sym }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% elif entry.type == 'remove' %}
+                    <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.25rem;">
+                        <span style="font-family: var(--font-mono); font-size: 0.7rem; color: #ef4444; background-color: rgba(239, 68, 68, 0.15); padding: 0.15rem 0.5rem; border: 1px solid rgba(239, 68, 68, 0.3); font-weight: bold; text-transform: uppercase;">- REMOVED {{ entry.removed_count }}</span>
+                        <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
+                            {% for sym in entry.removed_symbols %}
+                            <span class="quant-ticker-tag" style="padding: 0.15rem 0.45rem; font-size: 0.775rem; border-color: rgba(239, 68, 68, 0.4); color: #ef4444;">{{ sym }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% elif entry.type == 'regen' %}
+                    <div style="font-family: var(--font-mono); font-size: 0.825rem; color: var(--accent-blue); background-color: rgba(47, 95, 166, 0.12); padding: 0.4rem 0.75rem; border: 1px solid rgba(47, 95, 166, 0.3);">
+                        ⚡ {{ entry.text }}
+                    </div>
+                    {% else %}
+                    <div style="font-family: var(--font-mono); font-size: 0.825rem; color: var(--card-sub-color);">
+                        {{ entry.text }}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- SEPARATOR LINE -->
+    <div style="border-top: 1px solid var(--card-divider); margin: 2rem 0;"></div>
+
+    <!-- SECTION 3: SYSTEM ERROR DIAGNOSTIC FEED -->
+    <div class="quant-box border-blue">
+        <div class="quant-head">
+            <div class="quant-title">SYSTEM ERROR DIAGNOSTIC FEED</div>
+            <div class="quant-tag">{{ error_logs|length }} ERROR LOGS</div>
+        </div>
+        <div class="quant-sub">Real-time error tracebacks, API exception logs, and pipeline execution failures</div>
+        <div class="quant-body">
+            {% if error_logs %}
+            <div style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 400px; overflow-y: auto;">
+                {% for err in error_logs %}
+                <div style="background-color: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); padding: 0.75rem; font-family: var(--font-mono); font-size: 0.8rem; color: #f87171;">
+                    <div style="font-weight: bold; margin-bottom: 0.25rem;">[File: {{ err.filename }}]</div>
+                    <div>{{ err.line }}</div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div style="padding: 2.5rem 1rem; text-align: center; background-color: rgba(0, 0, 0, 0.15); border: 1px solid var(--card-divider);">
+                <div style="font-size: 2rem; margin-bottom: 0.5rem;">✓</div>
+                <div style="font-family: var(--font-disp); font-size: 1rem; font-weight: 700; color: var(--accent-emerald); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.35rem;">
+                    0 Active Critical System Errors
+                </div>
+                <div style="font-family: var(--font-body); font-style: italic; font-size: 0.9rem; color: var(--card-sub-color);">
+                    All background cron tasks, Schwab API data feeds, and Zarr database writes are operating cleanly.
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+
+<style>
+    .symbol-log-card {
+        background-color: rgba(0, 0, 0, 0.2);
+        border: 1px solid var(--card-divider);
+        padding: 0.85rem 1rem;
+        transition: border-color 0.2s ease;
+    }
+    .symbol-log-card:hover {
+        border-color: var(--card-border);
+    }
+</style>
+
+<script>
+    function filterSymbolLogs() {
+        const query = document.getElementById('symbol-log-search').value.toUpperCase().trim();
+        const cards = document.querySelectorAll('.symbol-log-card');
+        
+        cards.forEach(card => {
+            const searchData = card.getAttribute('data-search').toUpperCase();
+            if (searchData.includes(query)) {
+                card.style.display = 'block';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    }
+
+    function clearCronLog() {
+        if (!confirm("Clear the contents of temp_cron_log.log?")) return;
+        fetch('/api/logs/clear-cron-log', { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    const el = document.getElementById('cron-log-console');
+                    if (el) el.innerText = 'Log cleared.';
+                } else {
+                    alert("Failed to clear log: " + (data.error || "Unknown error"));
+                }
+            })
+            .catch(err => alert("Error clearing log: " + err));
+    }
+</script>
+{% endblock %}

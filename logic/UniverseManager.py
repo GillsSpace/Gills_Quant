@@ -20,6 +20,14 @@ class UniverseManager:
 
     long_file_vars = ['name','type','sector','exchange','industry','close','average_volume_30d_calc','market_cap_basic']
 
+    universe_excluded_idents = [
+        'MTEST',  # Official CTA/AMEX synthetic exchange test ticker
+        'TEST',   # Generic exchange system test symbol
+        'ZTEST',  # NASDAQ/UTP exchange test ticker
+        'ZTST',   # Cboe/BATS exchange test ticker
+        'NTEST',  # NYSE consolidated tape test ticker
+    ]
+
     universe_dict = {
         "u00": {
             "in": [
@@ -48,6 +56,7 @@ class UniverseManager:
             df = df.with_columns(
                 pl.col('name').map_elements(UniverseManager._clean_symbol, return_dtype=pl.String).alias('name')
             )
+            df = df.filter(~pl.col('name').is_in(UniverseManager.universe_excluded_idents))
         return df
 
     @staticmethod
@@ -181,9 +190,9 @@ class UniverseManager:
         with log_dir.open('a') as f:
             timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             if added_stocks:
-                f.write(f"{timestamp} - Added {len(added_stocks)} symbols: {', '.join(str(s) for s in added_stocks)}\n")
+                f.write(f"{timestamp} - Added {len(added_stocks)} symbols: {', '.join(str(s) for s in sorted(added_stocks))}\n")
             if removed_stocks:
-                f.write(f"{timestamp} - Removed {len(removed_stocks)} symbols: {', '.join(str(s) for s in removed_stocks)}\n")
+                f.write(f"{timestamp} - Removed {len(removed_stocks)} symbols: {', '.join(str(s) for s in sorted(removed_stocks))}\n")
             if not added_stocks and not removed_stocks:
                 f.write(f"{timestamp} - No changes in the universe.\n")
 

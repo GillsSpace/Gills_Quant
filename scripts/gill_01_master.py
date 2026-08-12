@@ -25,7 +25,7 @@ def main():
     time_str = datetime_rounded.strftime("%H:%M")
     day_of_week = datetime_rounded.strftime("%A")
 
-    extra_print_times = time_str in ['03:15', '03:20', '03:25', '23:40', '23:45']
+    extra_print_times = time_str in ['03:15', '03:20', '03:25', '23:30', '23:40', '23:45']
 
     # Always Run: =======================================================================
 
@@ -63,11 +63,13 @@ def main():
     if time_str in return_time_str_range(start='09:30', end='16:00') and day_of_week in WEEKDAYS:
         pass
 
-    if time_str == '23:40':
+    if time_str == '23:30':
         next_day = (datetime_rounded + timedelta(days=1)).strftime("%Y-%m-%d")
         UM.regen_csv('u00')
         dm.add_db_day_shell(next_day)
         dm.backfill_missing_days_and_corporate_actions()
+
+    if time_str == '23:40':
         dm.retention_trim_db()
 
     if time_str == '23:45':
