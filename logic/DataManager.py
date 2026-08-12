@@ -448,7 +448,7 @@ class DataManager:
         if not is_initial_creation:
             # Reindex the entire dataset to combined symbols lazily
             reindexed_ds = ds_disk.reindex({'ident': combined_idents}, fill_value=np.nan)
-            combined_ds = xr.concat([reindexed_ds, new_day_shell], dim='day')
+            combined_ds = xr.concat([reindexed_ds, new_day_shell], dim='day', join='override')
         else:
             combined_ds = new_day_shell
 
@@ -564,6 +564,24 @@ class DataManager:
             })
 
             ds_to_write.to_zarr(DataManager.hot_path_db, region=region_to_update, mode='r+')
+
+            try:
+                from logic.lib_files import update_status
+                total_size = 0
+                if os.path.exists(DataManager.hot_path_db):
+                    for dirpath, _, filenames in os.walk(DataManager.hot_path_db):
+                        for f in filenames:
+                            fp = os.path.join(dirpath, f)
+                            if os.path.exists(fp):
+                                total_size += os.path.getsize(fp)
+                update_status({
+                    "last_qvar_pull_time": f"{day} {time}",
+                    "hot_db_symbols_count": len(existing_idents),
+                    "hot_db_active_days_count": len(ds_disk.day.values) if ds_disk is not None else 0,
+                    "hot_db_disk_size_mb": round(total_size / (1024 * 1024), 2)
+                })
+            except Exception as status_e:
+                print(f"Warning: Failed to update status.json in save_qVar_data: {status_e}")
         finally:
             if ds_disk is not None:
                 ds_disk.close()
@@ -701,6 +719,12 @@ class DataManager:
             })
 
             ds_to_write.to_zarr(DataManager.hot_path_db, region=region_to_update, mode='r+')
+
+            try:
+                from logic.lib_files import update_status
+                update_status({"fundamental_data_pulled_today": True})
+            except Exception as status_e:
+                print(f"Warning: Failed to update status.json in save_fVar_data: {status_e}")
         finally:
             if ds_disk is not None:
                 ds_disk.close()
@@ -922,6 +946,22 @@ class DataManager:
                 'num_idents_after': len(idents_to_keep),
                 'idents_removed': idents_removed,
             })
+
+            try:
+                from logic.lib_files import update_status
+                total_size = 0
+                if os.path.exists(DataManager.hot_path_db):
+                    for dirpath, _, filenames in os.walk(DataManager.hot_path_db):
+                        for f in filenames:
+                            fp = os.path.join(dirpath, f)
+                            if os.path.exists(fp):
+                                total_size += os.path.getsize(fp)
+                update_status({
+                    "hot_db_active_days_count": len(days_to_keep),
+                    "hot_db_disk_size_mb": round(total_size / (1024 * 1024), 2)
+                })
+            except Exception as status_e:
+                print(f"Warning: Failed to update status.json in retention_trim_db: {status_e}")
 
             return stats
         finally:

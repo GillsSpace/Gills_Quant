@@ -1,23 +1,64 @@
-nav h1 {
-    background-color: black;
-    color: white;
-    padding: .5rem 1rem;
-    font-size: 1.5rem;
-    border-color: cadetblue;
-    border-width: 0 0 .3rem 0;
-    border-style: solid;
-}
-
-nav .nav-links {
+.main-header-nav {
     display: flex;
-    gap: 1rem;
-    background-color: #8e99a9;
-    padding: .25rem 1rem;
+    flex-direction: column;
+    width: 100%;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 }
 
-nav a {
-    background-color: white;
-    padding: .25rem 1rem;
+.top-black-bar {
+    background-color: #000000;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.6rem 1.5rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.header-title {
+    color: #ffffff;
+    font-size: 1.35rem;
+    font-weight: 800;
+    margin: 0;
+    padding: 0;
+    font-family: 'Archivo', system-ui, -apple-system, sans-serif;
+    letter-spacing: -0.01em;
+}
+
+.nav-links {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.nav-links a {
+    background-color: transparent;
+    padding: 0.35rem 0.85rem;
     text-decoration: none;
-    color: #1e293b;
+    color: #cbd5e1;
+    font-family: 'Archivo', system-ui, -apple-system, sans-serif;
+    font-size: 0.825rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.nav-links a:hover {
+    color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.nav-links a.active {
+    background-color: #8e99a9;
+    color: #000000;
+    font-weight: 800;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.gray-accent-stripe {
+    height: 4px;
+    background-color: #8e99a9;
+    width: 100%;
 }

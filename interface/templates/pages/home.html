@@ -4,87 +4,106 @@
 
 {% block content %}
     <div style="font-family: Georgia, Garamond, 'Times New Roman', Times, serif; max-width: 1200px; margin: 0 auto; padding: 1.5rem 0;">
-        <h1 style="font-size: 2.5rem; font-weight: bold; margin-bottom: 0.5rem; color: #f8fafc; font-style: normal;">Hello, Wills</h1>
-        <p style="color: #94a3b8; font-size: 1.15rem; margin-bottom: 2rem; font-style: italic; line-height: 1.6;">Welcome to the Gills Quant Control dashboard. Below is the operational status of your local database and API connection.</p>
+        <h1 style="font-size: 2.5rem; font-weight: bold; margin-bottom: 0.5rem; color: var(--heading-color); font-style: normal;">Hello, Wills</h1>
+        <p style="color: var(--sub-color); font-size: 1.15rem; margin-bottom: 2rem; font-style: italic; line-height: 1.6;">Welcome to the Gills Quant Control dashboard. Below is the operational status of your local database and API connection.</p>
         
-        <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem;">
             
             <!-- CARD 1: LAST DATA PULL -->
-            <div style="background-color: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); transition: transform 0.2s, box-shadow 0.2s;" class="dashboard-card">
-                <h3 style="color: #94a3b8; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1rem; font-weight: 600;">Last Data Pull</h3>
-                {% if stats %}
-                    <div style="font-size: 2.2rem; font-weight: 700; color: #f1f5f9; margin-bottom: 0.5rem;">
-                        {{ stats.last_pull_time }}
-                    </div>
-                    <div style="font-size: 0.95rem; color: #cbd5e1; margin-bottom: 1.25rem;">
-                        Date: <span style="font-weight: 600; color: #f8fafc;">{{ stats.last_pull_day }}</span>
-                    </div>
-                    
-                    <div style="border-top: 1px solid #334155; padding-top: 0.75rem; display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.85rem; color: #94a3b8;">
-                        <div style="display: flex; justify-content: space-between;">
-                            <span>Symbols Updated</span>
-                            <span style="color: #cbd5e1; font-weight: 600;">{{ stats.last_pull_tickers }} / {{ stats.num_idents }}</span>
+            <div class="quant-box border-blue">
+                <div class="quant-head">
+                    <div class="quant-title">LAST DATA PULL</div>
+                    <div class="quant-tag">SCHWAB API</div>
+                </div>
+                <div class="quant-sub">Most recent automated ingestion from market data feeds</div>
+                <div class="quant-body">
+                    {% if stats %}
+                        <div class="metric-highlight">
+                            <div class="metric-main-val">{{ stats.last_pull_time }}</div>
+                            <div class="metric-sub-text">Date: <span>{{ stats.last_pull_day }}</span></div>
                         </div>
-                        <div style="display: flex; justify-content: space-between;">
-                            <span>Populated Metrics</span>
-                            <span style="color: #cbd5e1; font-weight: 600;">{{ stats.last_pull_vars }} / {{ stats.num_qVars }}</span>
+                        
+                        <div class="quant-data-list">
+                            <div class="quant-data-row">
+                                <span class="quant-data-label">Symbols Updated</span>
+                                <span class="quant-data-val">{{ stats.last_pull_tickers }} / {{ stats.num_idents }}</span>
+                            </div>
+                            <div class="quant-data-row">
+                                <span class="quant-data-label">Populated Metrics</span>
+                                <span class="quant-data-val">{{ stats.last_pull_vars }} / {{ stats.num_qVars }}</span>
+                            </div>
+                            <div class="quant-data-row">
+                                <span class="quant-data-label">Top Gainer</span>
+                                <span class="quant-data-val green">{{ stats.top_gainer_symbol }} (+{{ stats.top_gainer_val }}%)</span>
+                            </div>
+                            <div class="quant-data-row">
+                                <span class="quant-data-label">Most Active Ticker</span>
+                                <span class="quant-data-val blue">{{ stats.most_active_symbol }} ({{ stats.most_active_vol }})</span>
+                            </div>
                         </div>
-                        <div style="display: flex; justify-content: space-between;">
-                            <span>Top Gainer</span>
-                            <span style="color: #10b981; font-weight: 600;">{{ stats.top_gainer_symbol }} (+{{ stats.top_gainer_val }}%)</span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between;">
-                            <span>Most Active Ticker</span>
-                            <span style="color: #38bdf8; font-weight: 600;">{{ stats.most_active_symbol }} ({{ stats.most_active_vol }})</span>
-                        </div>
-                    </div>
-                {% else %}
-                    <p style="color: #ef4444; font-weight: 500;">No data pull info available.</p>
-                {% endif %}
+                    {% else %}
+                        <p style="color: #ef4444; font-family: var(--font-disp); font-weight: 500;">No data pull info available.</p>
+                    {% endif %}
+                </div>
             </div>
 
             <!-- CARD 2: HOT DATABASE HEALTH -->
-            <div style="background-color: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); transition: transform 0.2s, box-shadow 0.2s;" class="dashboard-card">
-                <h3 style="color: #94a3b8; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1rem; font-weight: 600;">Hot DB Health</h3>
-                {% if stats %}
-                    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
-                        <div class="status-dot {{ stats.db_health | lower | replace(' ', '-') if stats else 'healthy' }}"></div>
-                        <span style="font-size: 1.75rem; font-weight: 700; color: #f1f5f9;">{{ stats.db_health }}</span>
-                    </div>
-                    <div style="font-size: 0.95rem; color: #cbd5e1; margin-bottom: 1rem;">
-                        Size on Disk: <span style="font-weight: 600; color: #f8fafc;">{{ stats.db_size_mb }} MB</span>
-                    </div>
-                    <div style="border-top: 1px solid #334155; padding-top: 0.75rem; display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.85rem; color: #94a3b8;">
-                        <div style="display: flex; justify-content: space-between;">
-                            <span>Active Window</span>
-                            <span style="color: #cbd5e1; font-weight: 500;">{{ stats.num_days }} / {{ stats.retention_days }} Days Retention</span>
+            <div class="quant-box border-emerald">
+                <div class="quant-head">
+                    <div class="quant-title">HOT DB HEALTH</div>
+                    <div class="quant-tag">ZARR STORE</div>
+                </div>
+                <div class="quant-sub">High-frequency timeseries cache and disk utilization</div>
+                <div class="quant-body">
+                    {% if stats %}
+                        <div class="metric-highlight">
+                            <div class="status-row">
+                                <div class="status-dot {{ stats.db_health | lower | replace(' ', '-') if stats else 'healthy' }}"></div>
+                                <div class="metric-main-val" style="margin-bottom: 0;">{{ stats.db_health }}</div>
+                            </div>
+                            <div class="metric-sub-text" style="margin-top: 0.5rem;">Size on Disk: <span>{{ stats.db_size_mb }} MB</span></div>
                         </div>
-                        <div style="display: flex; justify-content: space-between;">
-                            <span>Quote Variables</span>
-                            <span style="color: #cbd5e1; font-weight: 500;">{{ stats.num_qVars }} Vars</span>
+                        
+                        <div class="quant-data-list">
+                            <div class="quant-data-row">
+                                <span class="quant-data-label">Active Window</span>
+                                <span class="quant-data-val">{{ stats.num_days }} / {{ stats.retention_days }} Days Retention</span>
+                            </div>
+                            <div class="quant-data-row">
+                                <span class="quant-data-label">Quote Variables</span>
+                                <span class="quant-data-val">{{ stats.num_qVars }} Vars</span>
+                            </div>
+                            <div class="quant-data-row">
+                                <span class="quant-data-label">Fundamental Variables</span>
+                                <span class="quant-data-val">{{ stats.num_fVars }} Vars</span>
+                            </div>
                         </div>
-                        <div style="display: flex; justify-content: space-between;">
-                            <span>Fundamental Variables</span>
-                            <span style="color: #cbd5e1; font-weight: 500;">{{ stats.num_fVars }} Vars</span>
-                        </div>
-                    </div>
-                {% else %}
-                    <p style="color: #ef4444; font-weight: 500;">Database details unavailable.</p>
-                {% endif %}
+                    {% else %}
+                        <p style="color: #ef4444; font-family: var(--font-disp); font-weight: 500;">Database details unavailable.</p>
+                    {% endif %}
+                </div>
             </div>
 
             <!-- CARD 3: CONNECTION STATUS -->
-            <div style="background-color: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); transition: transform 0.2s, box-shadow 0.2s;" class="dashboard-card">
-                <h3 style="color: #94a3b8; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1rem; font-weight: 600;">API Connection</h3>
-                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
-                    <div style="width: 12px; height: 12px; border-radius: 50%; background-color: #10b981;"></div>
-                    <span style="font-size: 1.75rem; font-weight: 700; color: #f1f5f9;">Active</span>
+            <div class="quant-box border-gold">
+                <div class="quant-head">
+                    <div class="quant-title">API CONNECTION</div>
+                    <div class="quant-tag">OAUTH FEED</div>
                 </div>
-                <div style="font-size: 0.95rem; color: #cbd5e1; margin-bottom: 1rem; line-height: 1.5;">
-                    Schwab API credentials loaded.
-                </div>
-                <div style="border-top: 1px solid #334155; padding-top: 1rem; font-size: 0.85rem; color: #94a3b8;">
-                    <p>{{ tokens }}</p>
+                <div class="quant-sub">Real-time data streaming and credential validity</div>
+                <div class="quant-body">
+                    <div class="metric-highlight">
+                        <div class="status-row">
+                            <div class="status-dot healthy"></div>
+                            <div class="metric-main-val" style="margin-bottom: 0;">Active</div>
+                        </div>
+                        <div class="metric-sub-text" style="margin-top: 0.5rem;">Schwab API credentials loaded &amp; validated.</div>
+                    </div>
+                    
+                    <div class="token-badge">
+                        <div class="token-badge-icon">⚡</div>
+                        <div class="token-badge-text">{{ tokens }}</div>
+                    </div>
                 </div>
             </div>
             
@@ -98,19 +117,13 @@
             border-radius: 50%;
         }
         .status-dot.healthy {
-            background-color: #10b981;
+            background-color: var(--accent-emerald);
         }
         .status-dot.out-of-date {
-            background-color: #f59e0b;
+            background-color: var(--accent-gold);
         }
         .status-dot.empty-database {
-            background-color: #ef4444;
-        }
-
-        .dashboard-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1) !important;
-            border-color: #475569 !important;
+            background-color: var(--rose);
         }
     </style>
 {% endblock %}

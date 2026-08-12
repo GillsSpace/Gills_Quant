@@ -1,0 +1,368 @@
+{% extends "base.html" %}
+
+{% block title %}Settings{% endblock %}
+
+{% block content %}
+<div style="font-family: Georgia, Garamond, 'Times New Roman', Times, serif; max-width: 1200px; margin: 0 auto; padding: 1.5rem 0;">
+    <h1 style="font-size: 2.5rem; font-weight: bold; margin-bottom: 0.5rem; color: var(--heading-color); font-style: normal;">Settings</h1>
+    <p style="color: var(--sub-color); font-size: 1.15rem; margin-bottom: 2rem; font-style: italic; line-height: 1.6;">
+        Manage your user preferences, visual themes, and system display parameters.
+    </p>
+
+    <!-- CARD: THEME SELECTION -->
+    <div class="quant-box border-blue" style="margin-bottom: 2rem;">
+        <div class="quant-head">
+            <div class="quant-title">THEME SELECTION</div>
+            <div class="quant-tag">6 PRESETS</div>
+        </div>
+        <div class="quant-sub">Select your preferred color palette for the dashboard interface. Your selection persists automatically across sessions.</div>
+        <div class="quant-body">
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.25rem;" id="theme-grid">
+                
+                <!-- THEME 1: MIDNIGHT QUANT -->
+                <div onclick="selectTheme('midnight')" id="theme-card-midnight" class="theme-select-card">
+                    <div class="theme-preview-box" style="background-color: #0a1628;">
+                        <div class="theme-mini-card" style="background-color: #12243d; border-top: 3px solid #2f5fa6;">
+                            <div style="font-family: var(--font-disp); font-size: 11px; font-weight: 700; color: #f8fafc; text-transform: uppercase;">MIDNIGHT QUANT</div>
+                            <div style="display: flex; gap: 4px; margin-top: 4px;">
+                                <span style="width: 8px; height: 8px; border-radius: 50%; background: #2f5fa6;"></span>
+                                <span style="width: 8px; height: 8px; border-radius: 50%; background: #c9a227;"></span>
+                                <span style="width: 8px; height: 8px; border-radius: 50%; background: #10b981;"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="theme-card-meta">
+                        <div class="theme-card-name">1. Midnight Quant <span class="theme-badge-tag">Dark Navy</span></div>
+                        <div class="theme-card-desc">Deep navy canvas with slate cards, RQA blue and gold quantitative accents.</div>
+                    </div>
+                    <div class="active-indicator">✓ Active</div>
+                </div>
+
+                <!-- THEME 2: OBSIDIAN GOLD -->
+                <div onclick="selectTheme('obsidian')" id="theme-card-obsidian" class="theme-select-card">
+                    <div class="theme-preview-box" style="background-color: #0f172a;">
+                        <div class="theme-mini-card" style="background-color: #1e293b; border-top: 3px solid #c9a227;">
+                            <div style="font-family: var(--font-disp); font-size: 11px; font-weight: 700; color: #ffffff; text-transform: uppercase;">OBSIDIAN GOLD</div>
+                            <div style="display: flex; gap: 4px; margin-top: 4px;">
+                                <span style="width: 8px; height: 8px; border-radius: 50%; background: #c9a227;"></span>
+                                <span style="width: 8px; height: 8px; border-radius: 50%; background: #f59e0b;"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="theme-card-meta">
+                        <div class="theme-card-name">2. Obsidian Gold <span class="theme-badge-tag">Dark Slate</span></div>
+                        <div class="theme-card-desc">Dark slate obsidian canvas with charcoal cards and warm amber gold highlights.</div>
+                    </div>
+                    <div class="active-indicator">✓ Active</div>
+                </div>
+
+                <!-- THEME 3: CRISP PAPER -->
+                <div onclick="selectTheme('paper')" id="theme-card-paper" class="theme-select-card">
+                    <div class="theme-preview-box" style="background-color: #ffffff; border: 1px solid #e2e8f0;">
+                        <div class="theme-mini-card" style="background-color: #FCFCFA; border-top: 3px solid #0a1628; border-color: #e2e8f0;">
+                            <div style="font-family: var(--font-disp); font-size: 11px; font-weight: 700; color: #0a1628; text-transform: uppercase;">CRISP PAPER</div>
+                            <div style="display: flex; gap: 4px; margin-top: 4px;">
+                                <span style="width: 8px; height: 8px; border-radius: 50%; background: #0a1628;"></span>
+                                <span style="width: 8px; height: 8px; border-radius: 50%; background: #2f5fa6;"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="theme-card-meta">
+                        <div class="theme-card-name">3. Crisp Paper <span class="theme-badge-tag">Light Theme</span></div>
+                        <div class="theme-card-desc">Clean white canvas with warm publication figure boxes and deep navy headings.</div>
+                    </div>
+                    <div class="active-indicator">✓ Active</div>
+                </div>
+
+                <!-- THEME 4: SOLARIZED SAND -->
+                <div onclick="selectTheme('solarized')" id="theme-card-solarized" class="theme-select-card">
+                    <div class="theme-preview-box" style="background-color: #fdf6e3; border: 1px solid #eee8d5;">
+                        <div class="theme-mini-card" style="background-color: #fffbf0; border-top: 3px solid #268bd2; border-color: #eee8d5;">
+                            <div style="font-family: var(--font-disp); font-size: 11px; font-weight: 700; color: #073642; text-transform: uppercase;">SOLARIZED SAND</div>
+                            <div style="display: flex; gap: 4px; margin-top: 4px;">
+                                <span style="width: 8px; height: 8px; border-radius: 50%; background: #268bd2;"></span>
+                                <span style="width: 8px; height: 8px; border-radius: 50%; background: #b58900;"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="theme-card-meta">
+                        <div class="theme-card-name">4. Solarized Sand <span class="theme-badge-tag">Light Warm</span></div>
+                        <div class="theme-card-desc">Warm sandstone cream canvas with sandstone cards, solarized blue and amber accents.</div>
+                    </div>
+                    <div class="active-indicator">✓ Active</div>
+                </div>
+
+                <!-- THEME 5: CYBER EMERALD -->
+                <div onclick="selectTheme('emerald')" id="theme-card-emerald" class="theme-select-card">
+                    <div class="theme-preview-box" style="background-color: #05131a;">
+                        <div class="theme-mini-card" style="background-color: #0a222d; border-top: 3px solid #10b981;">
+                            <div style="font-family: var(--font-disp); font-size: 11px; font-weight: 700; color: #ecfdf5; text-transform: uppercase;">CYBER EMERALD</div>
+                            <div style="display: flex; gap: 4px; margin-top: 4px;">
+                                <span style="width: 8px; height: 8px; border-radius: 50%; background: #10b981;"></span>
+                                <span style="width: 8px; height: 8px; border-radius: 50%; background: #34d399;"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="theme-card-meta">
+                        <div class="theme-card-name">5. Cyber Emerald <span class="theme-badge-tag">Dark Teal</span></div>
+                        <div class="theme-card-desc">High-tech dark cyan canvas with deep teal cards and vibrant emerald green metrics.</div>
+                    </div>
+                    <div class="active-indicator">✓ Active</div>
+                </div>
+
+                <!-- THEME 6: NORDIC FROST -->
+                <div onclick="selectTheme('nordic')" id="theme-card-nordic" class="theme-select-card">
+                    <div class="theme-preview-box" style="background-color: #1a202c;">
+                        <div class="theme-mini-card" style="background-color: #2d3748; border-top: 3px solid #38bdf8;">
+                            <div style="font-family: var(--font-disp); font-size: 11px; font-weight: 700; color: #f7fafc; text-transform: uppercase;">NORDIC FROST</div>
+                            <div style="display: flex; gap: 4px; margin-top: 4px;">
+                                <span style="width: 8px; height: 8px; border-radius: 50%; background: #38bdf8;"></span>
+                                <span style="width: 8px; height: 8px; border-radius: 50%; background: #f6ad55;"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="theme-card-meta">
+                        <div class="theme-card-name">6. Nordic Frost <span class="theme-badge-tag">Dark Slate Blue</span></div>
+                        <div class="theme-card-desc">Cool slate blue canvas with deep slate cards and frost cyan highlights.</div>
+                    </div>
+                    <div class="active-indicator">✓ Active</div>
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+</div>
+
+<style>
+    .theme-select-card {
+        background-color: rgba(0, 0, 0, 0.12);
+        border: 2px solid var(--card-divider);
+        border-radius: 0;
+        padding: 0.85rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+
+    .theme-select-card:hover {
+        transform: translateY(-2px);
+        border-color: var(--accent-blue);
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+    }
+
+    .theme-select-card.active-theme {
+        border-color: var(--accent-blue) !important;
+        background-color: rgba(47, 95, 166, 0.08);
+        box-shadow: 0 0 0 1px var(--accent-blue);
+    }
+
+    .theme-preview-box {
+        height: 70px;
+        padding: 0.5rem;
+        border-radius: 0;
+        margin-bottom: 0.75rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .theme-mini-card {
+        width: 100%;
+        height: 100%;
+        padding: 0.5rem;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .theme-card-name {
+        font-family: var(--font-disp);
+        font-weight: 700;
+        font-size: 0.9rem;
+        color: var(--card-title-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.35rem;
+    }
+
+    .theme-badge-tag {
+        font-family: var(--font-mono);
+        font-size: 0.65rem;
+        font-weight: 600;
+        color: var(--sub-color);
+        background-color: rgba(255, 255, 255, 0.06);
+        padding: 0.1rem 0.4rem;
+        border: 1px solid var(--card-divider);
+    }
+
+    .theme-card-desc {
+        font-family: var(--font-body);
+        font-style: italic;
+        font-size: 0.8rem;
+        color: var(--card-sub-color);
+        line-height: 1.35;
+    }
+
+    .active-indicator {
+        display: none;
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+        font-family: var(--font-mono);
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: #ffffff;
+        background-color: var(--accent-blue);
+        padding: 0.15rem 0.5rem;
+        border-radius: 0;
+    }
+
+    .theme-select-card.active-theme .active-indicator {
+        display: block;
+    }
+</style>
+
+<script>
+    const presets = {
+        midnight: {
+            name: "Midnight Quant (Dark Navy)",
+            vars: {
+                '--page-bg': '#0a1628',
+                '--card-bg': '#12243d',
+                '--card-border': '#1e293b',
+                '--heading-color': '#f8fafc',
+                '--sub-color': '#94a3b8',
+                '--card-title-color': '#f8fafc',
+                '--card-sub-color': '#94a3b8',
+                '--card-val-color': '#f8fafc',
+                '--card-label-color': '#cbd5e1',
+                '--card-divider': 'rgba(255, 255, 255, 0.08)',
+                '--accent-blue': '#2f5fa6',
+                '--accent-gold': '#c9a227',
+                '--accent-emerald': '#10b981'
+            }
+        },
+        obsidian: {
+            name: "Obsidian Gold (Dark Slate)",
+            vars: {
+                '--page-bg': '#0f172a',
+                '--card-bg': '#1e293b',
+                '--card-border': '#334155',
+                '--heading-color': '#ffffff',
+                '--sub-color': '#94a3b8',
+                '--card-title-color': '#f8fafc',
+                '--card-sub-color': '#94a3b8',
+                '--card-val-color': '#ffffff',
+                '--card-label-color': '#94a3b8',
+                '--card-divider': 'rgba(255, 255, 255, 0.08)',
+                '--accent-blue': '#c9a227',
+                '--accent-gold': '#f59e0b',
+                '--accent-emerald': '#10b981'
+            }
+        },
+        paper: {
+            name: "Crisp Paper (Warm Light)",
+            vars: {
+                '--page-bg': '#ffffff',
+                '--card-bg': '#FCFCFA',
+                '--card-border': '#e2e8f0',
+                '--heading-color': '#0a1628',
+                '--sub-color': '#475569',
+                '--card-title-color': '#0a1628',
+                '--card-sub-color': '#64748b',
+                '--card-val-color': '#0a1628',
+                '--card-label-color': '#475569',
+                '--card-divider': '#e2e8f0',
+                '--accent-blue': '#2f5fa6',
+                '--accent-gold': '#b45309',
+                '--accent-emerald': '#059669'
+            }
+        },
+        solarized: {
+            name: "Solarized Sand (Warm Light)",
+            vars: {
+                '--page-bg': '#fdf6e3',
+                '--card-bg': '#fffbf0',
+                '--card-border': '#eee8d5',
+                '--heading-color': '#073642',
+                '--sub-color': '#586e75',
+                '--card-title-color': '#073642',
+                '--card-sub-color': '#657b83',
+                '--card-val-color': '#073642',
+                '--card-label-color': '#586e75',
+                '--card-divider': '#eee8d5',
+                '--accent-blue': '#268bd2',
+                '--accent-gold': '#b58900',
+                '--accent-emerald': '#2aa198'
+            }
+        },
+        emerald: {
+            name: "Cyber Emerald (Dark Teal)",
+            vars: {
+                '--page-bg': '#05131a',
+                '--card-bg': '#0a222d',
+                '--card-border': '#133848',
+                '--heading-color': '#ecfdf5',
+                '--sub-color': '#6ee7b7',
+                '--card-title-color': '#ecfdf5',
+                '--card-sub-color': '#94a3b8',
+                '--card-val-color': '#34d399',
+                '--card-label-color': '#94a3b8',
+                '--card-divider': 'rgba(255, 255, 255, 0.08)',
+                '--accent-blue': '#10b981',
+                '--accent-gold': '#f59e0b',
+                '--accent-emerald': '#34d399'
+            }
+        },
+        nordic: {
+            name: "Nordic Frost (Dark Slate Blue)",
+            vars: {
+                '--page-bg': '#1a202c',
+                '--card-bg': '#2d3748',
+                '--card-border': '#4a5568',
+                '--heading-color': '#f7fafc',
+                '--sub-color': '#a0aec0',
+                '--card-title-color': '#f7fafc',
+                '--card-sub-color': '#cbd5e0',
+                '--card-val-color': '#f7fafc',
+                '--card-label-color': '#cbd5e0',
+                '--card-divider': 'rgba(255, 255, 255, 0.08)',
+                '--accent-blue': '#38bdf8',
+                '--accent-gold': '#f6ad55',
+                '--accent-emerald': '#68d391'
+            }
+        }
+    };
+
+    function selectTheme(key) {
+        const theme = presets[key];
+        if (!theme) return;
+
+        // Apply variables
+        for (const [vKey, vVal] of Object.entries(theme.vars)) {
+            document.documentElement.style.setProperty(vKey, vVal);
+        }
+
+        // Save selection
+        localStorage.setItem('gills_quant_active_theme_key', key);
+        localStorage.setItem('gills_quant_theme_vars', JSON.stringify(theme.vars));
+
+        // Highlight card
+        document.querySelectorAll('.theme-select-card').forEach(el => el.classList.remove('active-theme'));
+        const activeCard = document.getElementById('theme-card-' + key);
+        if (activeCard) activeCard.classList.add('active-theme');
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const activeKey = localStorage.getItem('gills_quant_active_theme_key') || 'midnight';
+        selectTheme(activeKey);
+    });
+</script>
+{% endblock %}

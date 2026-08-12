@@ -421,6 +421,8 @@ def detect_todays_filing_symbols(universe_symbols: list = None, max_retries: int
     try:
         with open(TODAYS_FILING_SYMBOLS_FILE, 'w') as f:
             json.dump(symbols_to_update, f)
+        from logic.lib_files import update_status
+        update_status({"edgar_filings_symbols_yesterday": len(symbols_to_update)})
     except Exception as e:
         print(f"Warning: Failed writing {TODAYS_FILING_SYMBOLS_FILE.name}: {e}")
 

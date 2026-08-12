@@ -216,5 +216,10 @@ def get_ticker_stats(symbol):
         print(f"Error fetching stats for {symbol}: {e}")
         return {"error": str(e)}, 500
 
+@bp.route('/settings')
+def settings():
+    return render_template('pages/settings.html')
+
+
 
 

@@ -1,14 +1,248 @@
+:root {
+    /* Dynamic Theme Variables (Default: Midnight Quant Dark Theme) */
+    --page-bg: #0a1628;
+    --card-bg: #12243d;
+    --card-border: #1e293b;
+    --heading-color: #f8fafc;
+    --sub-color: #94a3b8;
+    --card-title-color: #f8fafc;
+    --card-sub-color: #94a3b8;
+    --card-val-color: #f8fafc;
+    --card-label-color: #cbd5e1;
+    --card-divider: rgba(255, 255, 255, 0.08);
+    --accent-blue: #2f5fa6;
+    --accent-gold: #c9a227;
+    --accent-emerald: #10b981;
+    --rose: #e11d48;
+    
+    --font-disp: 'Archivo', system-ui, -apple-system, sans-serif;
+    --font-body: 'STIX Two Text', Georgia, serif;
+    --font-mono: 'IBM Plex Mono', monospace;
+}
+
 * {
     box-sizing: border-box;
     margin: 0;
-}
-
-body {
-    background-color: #1e293b;
-    color: #cbd5e1;
     padding: 0;
 }
 
+body {
+    background-color: var(--page-bg);
+    color: var(--sub-color);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.6;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    transition: background-color 0.25s ease, color 0.25s ease;
+}
+
 .base-content {
-    padding: 1rem;
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+}
+
+/* QUANTITATIVE FIGURE BOX AESTHETICS (SHARP SQUARE CORNERS, DYNAMIC THEMING) */
+.quant-box {
+    background-color: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-top: 3px solid var(--accent-blue);
+    border-radius: 0 !important; /* Sharp square corners */
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, background-color 0.25s ease;
+}
+
+.quant-box.border-gold {
+    border-top-color: var(--accent-gold);
+}
+
+.quant-box.border-emerald {
+    border-top-color: var(--accent-emerald);
+}
+
+.quant-box.border-blue {
+    border-top-color: var(--accent-blue);
+}
+
+.quant-box:hover {
+    transform: translateY(-2px);
+    border-color: var(--accent-blue);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+}
+
+.quant-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 1rem 1.25rem 0.75rem;
+    border-bottom: 1px solid var(--card-divider);
+}
+
+.quant-title {
+    font-family: var(--font-disp);
+    font-weight: 700;
+    font-size: 0.825rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--card-title-color);
+}
+
+.quant-title em {
+    font-style: normal;
+    color: var(--accent-gold);
+}
+
+.quant-tag {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--sub-color);
+    background-color: rgba(255, 255, 255, 0.05);
+    padding: 0.15rem 0.5rem;
+    border-radius: 0 !important; /* Sharp square corners */
+    border: 1px solid var(--card-divider);
+}
+
+.quant-sub {
+    font-family: var(--font-body);
+    font-style: italic;
+    font-size: 0.9rem;
+    color: var(--card-sub-color);
+    padding: 0.75rem 1.25rem 0.25rem;
+    line-height: 1.4;
+}
+
+.quant-body {
+    padding: 1.25rem;
+}
+
+/* METRIC HIGHLIGHT DISPLAY */
+.metric-highlight {
+    margin-bottom: 1.25rem;
+}
+
+.metric-main-val {
+    font-family: var(--font-mono);
+    font-size: 2.1rem;
+    font-weight: 700;
+    color: var(--card-val-color);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.35rem;
+}
+
+.metric-sub-text {
+    font-family: var(--font-disp);
+    font-size: 0.85rem;
+    color: var(--card-sub-color);
+}
+
+.metric-sub-text span {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    color: var(--card-val-color);
+}
+
+/* DATA LIST ROWS */
+.quant-data-list {
+    border-top: 1px solid var(--card-divider);
+    padding-top: 0.85rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.quant-data-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px dashed var(--card-divider);
+}
+
+.quant-data-row:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.quant-data-label {
+    font-family: var(--font-disp);
+    color: var(--card-label-color);
+    font-weight: 600;
+}
+
+.quant-data-val {
+    font-family: var(--font-mono);
+    color: var(--card-val-color);
+    font-weight: 600;
+}
+
+.quant-data-val.blue {
+    color: var(--accent-blue);
+}
+
+.quant-data-val.gold {
+    color: var(--accent-gold);
+}
+
+.quant-data-val.green {
+    color: var(--accent-emerald);
+}
+
+/* STATUS DOTS & BADGES */
+.status-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.35rem;
+}
+
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    box-shadow: 0 0 6px currentColor;
+}
+
+.status-dot.healthy {
+    background-color: var(--accent-emerald);
+    color: var(--accent-emerald);
+}
+
+.status-dot.out-of-date {
+    background-color: var(--accent-gold);
+    color: var(--accent-gold);
+}
+
+.status-dot.empty-database {
+    background-color: var(--rose);
+    color: var(--rose);
+}
+
+.token-badge {
+    background-color: rgba(201, 162, 39, 0.08);
+    border: 1px solid rgba(201, 162, 39, 0.25);
+    border-radius: 0 !important; /* Sharp square corners */
+    padding: 0.75rem 1rem;
+    margin-top: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.token-badge-icon {
+    color: var(--accent-gold);
+    font-size: 1.1rem;
+}
+
+.token-badge-text {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--card-val-color);
+    font-weight: 500;
 }

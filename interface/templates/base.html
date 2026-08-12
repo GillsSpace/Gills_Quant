@@ -5,8 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gills Quant - {% block title %}{% endblock %}</title>
     <link rel="shortcut icon" href="{{ url_for('static', filename='icons/favicon.ico') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=STIX+Two+Text:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/nav_styles.css') }}">
+    <script>
+        (function() {
+            try {
+                const savedTheme = localStorage.getItem('gills_quant_theme_vars');
+                if (savedTheme) {
+                    const vars = JSON.parse(savedTheme);
+                    for (const [key, val] of Object.entries(vars)) {
+                        document.documentElement.style.setProperty(key, val);
+                    }
+                }
+            } catch (e) {}
+        })();
+    </script>
 </head>
 <body>
     {% include('_header.html') %}
