@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Under Development{% endblock %}
+
+{% block content %}
+<div style="font-family: Georgia, Garamond, 'Times New Roman', Times, serif; max-width: 1200px; margin: 0 auto; padding: 1.5rem 0;">
+    
+    <!-- HEADER -->
+    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem;">
+        <h1 style="font-size: 2.5rem; font-weight: bold; color: var(--heading-color); font-style: normal;">Quant Dashboard</h1>
+        <span class="quant-tag">UNDER DEVELOPMENT</span>
+    </div>
+    <p style="color: var(--sub-color); font-size: 1.15rem; margin-bottom: 2rem; font-style: italic; line-height: 1.6;">
+        Real-time trading analytics, backtest visualizers, and strategy execution monitors.
+    </p>
+
+    <!-- MAIN UNDER DEVELOPMENT CARD -->
+    <div class="quant-box border-gold" style="max-width: 800px; margin: 0 auto; text-align: center; padding: 3rem 2rem;">
+        <div style="font-size: 3rem; margin-bottom: 1rem;">🚧</div>
+        <h2 style="font-family: var(--font-disp); font-size: 1.5rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--card-title-color); margin-bottom: 0.75rem;">
+            Dashboard Under Active Development
+        </h2>
+        <p style="font-family: var(--font-body); font-style: italic; font-size: 1rem; color: var(--card-sub-color); max-width: 600px; margin: 0 auto 2.5rem; line-height: 1.6;">
+            This module is being constructed for real-time strategy monitoring, portfolio risk decomposition, and quantitative signal generation.
+        </p>
+
+        <!-- ACTION NAVIGATION BUTTONS -->
+        <div style="display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap;">
+            <a href="/" style="font-family: var(--font-disp); font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; background: var(--accent-blue); color: #ffffff; text-decoration: none; padding: 0.65rem 1.5rem; transition: opacity 0.2s;">
+                ← Return to Home
+            </a>
+            <a href="/database" style="font-family: var(--font-disp); font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; background: transparent; color: var(--card-title-color); border: 1px solid var(--card-divider); text-decoration: none; padding: 0.65rem 1.5rem; transition: border-color 0.2s;">
+                Explore Database →
+            </a>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

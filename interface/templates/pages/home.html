@@ -25,19 +25,23 @@
                         
                         <div class="quant-data-list">
                             <div class="quant-data-row">
-                                <span class="quant-data-label">Symbols Updated</span>
-                                <span class="quant-data-val">{{ stats.last_pull_tickers }} / {{ stats.num_idents }}</span>
+                                <span class="quant-data-label" data-tooltip="Percentage of active u00 universe tickers populated with valid price quotes in the latest 5-minute ingestion pass (excludes invalid/halted symbols).">Ingestion Fill Rate</span>
+                                <span class="quant-data-val green">{{ stats.last_pull_tickers }} / {{ stats.status_json.get('u00_symbols_count', stats.num_idents) }} Tickers</span>
                             </div>
                             <div class="quant-data-row">
-                                <span class="quant-data-label">Populated Metrics</span>
-                                <span class="quant-data-val">{{ stats.last_pull_vars }} / {{ stats.num_qVars }}</span>
+                                <span class="quant-data-label" data-tooltip="Count of active quote variables populated out of 36 schema fields in master_db.zarr (includes bid, ask, last, mark, volume, etc.).">Schema Coverage</span>
+                                <span class="quant-data-val">{{ stats.last_pull_vars }} / {{ stats.num_qVars }} Quote Vars</span>
                             </div>
                             <div class="quant-data-row">
-                                <span class="quant-data-label">Top Gainer</span>
+                                <span class="quant-data-label" data-tooltip="Ticker with the highest percentage price gain recorded during the latest 5-minute data pull (calculated over market + extended hours quote updates).">Top Market Gainer</span>
                                 <span class="quant-data-val green">{{ stats.top_gainer_symbol }} (+{{ stats.top_gainer_val }}%)</span>
                             </div>
                             <div class="quant-data-row">
-                                <span class="quant-data-label">Most Active Ticker</span>
+                                <span class="quant-data-label" data-tooltip="Ticker with the largest percentage price drop recorded during the latest 5-minute data pull (calculated over market + extended hours quote updates).">Top Market Decliner</span>
+                                <span class="quant-data-val" style="color: #ef4444;">{{ stats.top_loser_symbol }} ({{ stats.top_loser_val }}%)</span>
+                            </div>
+                            <div class="quant-data-row">
+                                <span class="quant-data-label" data-tooltip="Ticker with the highest cumulative trading volume reported in the latest 5-minute quote slice (cumulative volume for the trading day).">Most Active Volume</span>
                                 <span class="quant-data-val blue">{{ stats.most_active_symbol }} ({{ stats.most_active_vol }})</span>
                             </div>
                         </div>
@@ -61,21 +65,41 @@
                                 <div class="status-dot {{ stats.db_health | lower | replace(' ', '-') if stats else 'healthy' }}"></div>
                                 <div class="metric-main-val" style="margin-bottom: 0;">{{ stats.db_health }}</div>
                             </div>
-                            <div class="metric-sub-text" style="margin-top: 0.5rem;">Size on Disk: <span>{{ stats.db_size_mb }} MB</span></div>
+                            <div class="metric-sub-text" style="margin-top: 0.5rem;">Size on Disk: <span>{{ stats.status_json.get('hot_db_disk_size_mb', stats.db_size_mb) }} MB</span></div>
                         </div>
                         
                         <div class="quant-data-list">
                             <div class="quant-data-row">
-                                <span class="quant-data-label">Active Window</span>
-                                <span class="quant-data-val">{{ stats.num_days }} / {{ stats.retention_days }} Days Retention</span>
+                                <span class="quant-data-label" data-tooltip="Historical day slices currently retained in master_db.zarr (retention policy trims data older than 180 days at 23:40 nightly).">Active Window</span>
+                                <span class="quant-data-val">{{ stats.status_json.get('hot_db_active_days_count', stats.num_days) }} / {{ stats.retention_days }} Days Retention</span>
                             </div>
                             <div class="quant-data-row">
-                                <span class="quant-data-label">Quote Variables</span>
-                                <span class="quant-data-val">{{ stats.num_qVars }} Vars</span>
+                                <span class="quant-data-label" data-tooltip="Total number of unique ticker symbol coordinates currently allocated in the Zarr database array (includes active u00 symbols plus retained historical tickers).">Symbols in Hot DB</span>
+                                <span class="quant-data-val">{{ stats.status_json.get('hot_db_symbols_count', stats.num_idents) }} Tickers</span>
                             </div>
                             <div class="quant-data-row">
-                                <span class="quant-data-label">Fundamental Variables</span>
-                                <span class="quant-data-val">{{ stats.num_fVars }} Vars</span>
+                                <span class="quant-data-label" data-tooltip="Number of active trading symbols matching u00 inclusion criteria (AMEX/NASDAQ/NYSE, average 30-day volume > 400K shares).">Universe u00 Active</span>
+                                <span class="quant-data-val">{{ stats.status_json.get('u00_symbols_count', stats.num_idents) }} Symbols</span>
+                            </div>
+                            <div class="quant-data-row">
+                                <span class="quant-data-label" data-tooltip="Distribution of active u00 universe symbols between Common Stocks and Exchange Traded Funds (ETFs / Funds).">Asset Breakdown</span>
+                                <span class="quant-data-val">
+                                    {% if stats.status_json.get('u00_asset_breakdown') %}
+                                        {{ stats.status_json.u00_asset_breakdown.stocks }} Stocks / {{ stats.status_json.u00_asset_breakdown.funds }} Funds
+                                    {% else %}
+                                        {{ stats.num_idents }} Tickers
+                                    {% endif %}
+                                </span>
+                            </div>
+                            <div class="quant-data-row">
+                                <span class="quant-data-label" data-tooltip="Indicates whether daily fundamental variables (P/E, Market Cap, SEC EDGAR filing metrics) have been ingested today (scheduled daily at 04:00 AM).">Fundamentals Pulled Today</span>
+                                <span class="quant-data-val {% if stats.status_json.get('fundamental_data_pulled_today') %}green{% else %}gold{% endif %}">
+                                    {% if stats.status_json.get('fundamental_data_pulled_today') %}Yes ✓{% else %}Pending (04:00 AM){% endif %}
+                                </span>
+                            </div>
+                            <div class="quant-data-row">
+                                <span class="quant-data-label" data-tooltip="Total dimension fields defined in the database schema: 36 high-frequency quote fields (5-minute) and 77 fundamental fields (daily).">Schema Variables</span>
+                                <span class="quant-data-val">{{ stats.num_qVars }} Quote / {{ stats.num_fVars }} Fund.</span>
                             </div>
                         </div>
                     {% else %}
@@ -87,22 +111,37 @@
             <!-- CARD 3: CONNECTION STATUS -->
             <div class="quant-box border-gold">
                 <div class="quant-head">
-                    <div class="quant-title">API CONNECTION</div>
-                    <div class="quant-tag">OAUTH FEED</div>
+                    <div class="quant-title">API CONNECTIONS</div>
+                    <div class="quant-tag">3 INTEGRATIONS</div>
                 </div>
-                <div class="quant-sub">Real-time data streaming and credential validity</div>
+                <div class="quant-sub">Real-time data streaming and credential validity for all API feeds</div>
                 <div class="quant-body">
                     <div class="metric-highlight">
                         <div class="status-row">
                             <div class="status-dot healthy"></div>
                             <div class="metric-main-val" style="margin-bottom: 0;">Active</div>
                         </div>
-                        <div class="metric-sub-text" style="margin-top: 0.5rem;">Schwab API credentials loaded &amp; validated.</div>
+                        <div class="metric-sub-text" style="margin-top: 0.5rem;">Primary Schwab OAuth &amp; Secondary Feeds Operational</div>
                     </div>
                     
                     <div class="token-badge">
                         <div class="token-badge-icon">⚡</div>
                         <div class="token-badge-text">{{ tokens }}</div>
+                    </div>
+
+                    <div class="quant-data-list" style="margin-top: 1rem;">
+                        <div class="quant-data-row">
+                            <span class="quant-data-label" data-tooltip="Primary market data feed for 5-minute price quotes, level-1 bid/ask, and volume streaming via Schwab Developer OAuth API.">Schwab API (Primary Quotes)</span>
+                            <span class="quant-data-val green">Active (OAuth Token)</span>
+                        </div>
+                        <div class="quant-data-row">
+                            <span class="quant-data-label" data-tooltip="Secondary execution &amp; corporate actions client configured via secrets/keys.json for paper trading and stock split/dividend events.">Alpaca API (Paper Trading)</span>
+                            <span class="quant-data-val blue">{{ stats.api_alpaca_status if stats else 'Active (Paper)' }}</span>
+                        </div>
+                        <div class="quant-data-row">
+                            <span class="quant-data-label" data-tooltip="SEC RSS feed reader (polled daily at 03:20 AM) detecting 10-K, 10-Q, and 8-K filings filed by universe symbols yesterday.">SEC EDGAR API (Filings Feed)</span>
+                            <span class="quant-data-val gold">{{ stats.api_edgar_status if stats else 'Active (RSS Feed)' }}</span>
+                        </div>
                     </div>
                 </div>
             </div>

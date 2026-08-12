@@ -7,85 +7,97 @@
 <script src="https://cdn.plot.ly/plotly-2.24.1.min.js" charset="utf-8"></script>
 
 <div style="font-family: Georgia, Garamond, 'Times New Roman', Times, serif; max-width: 1200px; margin: 0 auto; padding: 1.5rem 0;">
+    
+    <!-- HEADER -->
     <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem;">
-        <h1 style="font-size: 2.5rem; font-weight: bold; color: #f8fafc; font-style: normal;">Database Explorer</h1>
-        <span style="font-family: system-ui, -apple-system, sans-serif; font-size: 0.9rem; color: #94a3b8; background-color: #1e293b; padding: 0.25rem 0.75rem; border-radius: 20px; border: 1px solid #334155;">
-            Zarr Store
-        </span>
+        <h1 style="font-size: 2.5rem; font-weight: bold; color: var(--heading-color); font-style: normal;">Database Explorer</h1>
+        <span class="quant-tag">ZARR STORE</span>
     </div>
-    <p style="color: #94a3b8; font-size: 1.15rem; margin-bottom: 2rem; font-style: italic; line-height: 1.6;">
-        Explore stored timeseries data, active universe tickers, and structural variables.
+    <p style="color: var(--sub-color); font-size: 1.15rem; margin-bottom: 2rem; font-style: italic; line-height: 1.6;">
+        Explore stored timeseries data, active universe tickers, and multi-dimensional schema variables in your local Zarr database store.
     </p>
 
-    <!-- Tab Buttons -->
-    <div style="font-family: system-ui, -apple-system, sans-serif; display: flex; gap: 0.5rem; border-bottom: 2px solid #334155; padding-bottom: 0.5rem; margin-bottom: 2rem;">
-        <button onclick="switchTab('overview')" id="tab-overview" class="tab-btn active-tab">Overview</button>
-        <button onclick="switchTab('daily-stats')" id="tab-daily-stats" class="tab-btn">Daily Stats</button>
-        <button onclick="switchTab('tickers')" id="tab-tickers" class="tab-btn">Tickers ({{ db_info.num_idents if db_info else 0 }})</button>
-        <button onclick="switchTab('fields')" id="tab-fields" class="tab-btn">Variables</button>
+    <!-- TAB BUTTONS -->
+    <div class="db-tab-bar">
+        <button onclick="switchTab('overview')" id="tab-overview" class="db-tab-btn active-tab">OVERVIEW</button>
+        <button onclick="switchTab('daily-stats')" id="tab-daily-stats" class="db-tab-btn">DAILY STATS</button>
+        <button onclick="switchTab('tickers')" id="tab-tickers" class="db-tab-btn">TICKERS ({{ db_info.num_idents if db_info else 0 }})</button>
+        <button onclick="switchTab('fields')" id="tab-fields" class="db-tab-btn">VARIABLES</button>
     </div>
 
-    <!-- Tab Contents -->
-    <div style="font-family: system-ui, -apple-system, sans-serif;">
+    <!-- TAB CONTENTS -->
+    <div>
         
         <!-- OVERVIEW TAB -->
         <div id="content-overview" class="tab-content">
             {% if db_info %}
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
                 
-                <!-- CARD: DB SIZE & LOCATION -->
-                <div class="db-card">
-                    <h3 class="card-title">Storage Specs</h3>
-                    <div style="font-size: 2.2rem; font-weight: 700; color: #f1f5f9; margin-bottom: 0.5rem;">
-                        {{ db_info.db_size_gb }} GB
+                <!-- CARD 1: STORAGE SPECS -->
+                <div class="quant-box border-blue">
+                    <div class="quant-head">
+                        <div class="quant-title">STORAGE SPECS</div>
+                        <div class="quant-tag">DISK UTILIZATION</div>
                     </div>
-                    <div style="font-size: 0.95rem; color: #cbd5e1; margin-bottom: 1.25rem; word-break: break-all;">
-                        Path: <span style="font-family: monospace; color: #f8fafc; background-color: #0f172a; padding: 0.1rem 0.3rem; border-radius: 4px;">{{ db_info.path }}</span>
-                    </div>
-                    <div class="card-stats">
-                        <div class="stat-row">
-                            <span>Format</span>
-                            <span class="stat-val">Zarr (xarray consolidated)</span>
+                    <div class="quant-sub">Physical storage location, zarr format, and retention policy</div>
+                    <div class="quant-body">
+                        <div class="metric-highlight">
+                            <div class="metric-main-val">{{ db_info.db_size_gb }} GB</div>
+                            <div class="metric-sub-text">Path: <span style="font-family: var(--font-mono); font-size: 0.8rem; word-break: break-all;">{{ db_info.path }}</span></div>
                         </div>
-                        <div class="stat-row">
-                            <span>Retention Setting</span>
-                            <span class="stat-val">{{ db_info.retention }} Days</span>
+                        <div class="quant-data-list">
+                            <div class="quant-data-row">
+                                <span class="quant-data-label" data-tooltip="Consolidated Xarray Zarr storage engine optimized for ultra-fast time-series slicing.">Array Format</span>
+                                <span class="quant-data-val">Zarr (xarray consolidated)</span>
+                            </div>
+                            <div class="quant-data-row">
+                                <span class="quant-data-label" data-tooltip="Data older than retention days is automatically trimmed during the 23:40 PM nightly routine.">Retention Policy</span>
+                                <span class="quant-data-val">{{ db_info.retention }} Days Window</span>
+                            </div>
+                            <div class="quant-data-row">
+                                <span class="quant-data-label" data-tooltip="Total historical day slices stored in hot Zarr database store.">Recorded Days</span>
+                                <span class="quant-data-val">{{ db_info.num_days }} Days</span>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- CARD: DIMENSIONS -->
-                <div class="db-card">
-                    <h3 class="card-title">Dataset Structure</h3>
-                    <div style="font-size: 2.2rem; font-weight: 700; color: #f1f5f9; margin-bottom: 0.5rem;">
-                        Two Datasets
+                <!-- CARD 2: DATASET STRUCTURE -->
+                <div class="quant-box border-emerald">
+                    <div class="quant-head">
+                        <div class="quant-title">DATASET STRUCTURE</div>
+                        <div class="quant-tag">2 ARRAYS</div>
                     </div>
-                    <div style="font-size: 0.95rem; color: #cbd5e1; margin-bottom: 1.25rem;">
-                        Multi-dimensional coordinates: <span style="font-weight: 600; color: #f8fafc;">day, time, ident, qVar, fVar</span>
-                    </div>
-                    <div class="card-stats">
-                        <div class="stat-row" style="border-bottom: 1px dashed #334155; padding-bottom: 0.5rem; margin-bottom: 0.5rem;">
-                            <div style="display: flex; flex-direction: column;">
-                                <span style="font-weight: 700; color: #38bdf8; font-size: 0.9rem;">5m (Quote Data) — 4D Array</span>
-                                <span style="font-size: 0.8rem; color: #94a3b8; margin-top: 0.1rem;">Dimensions: [day, time, ident, qVar]</span>
-                            </div>
-                            <span class="stat-val">{{ db_info.num_days }}d × {{ db_info.num_idents }}s × {{ db_info.num_qvars }}v</span>
+                    <div class="quant-sub">Multi-dimensional dataset coordinates: day, time, ident, qVar, fVar</div>
+                    <div class="quant-body">
+                        <div class="metric-highlight">
+                            <div class="metric-main-val">5m &amp; 1d Arrays</div>
+                            <div class="metric-sub-text">High-Frequency Quotes + Daily Fundamentals</div>
                         </div>
-                        <div class="stat-row">
-                            <div style="display: flex; flex-direction: column;">
-                                <span style="font-weight: 700; color: #a855f7; font-size: 0.9rem;">1d (Fundamental Data) — 3D Array</span>
-                                <span style="font-size: 0.8rem; color: #94a3b8; margin-top: 0.1rem;">Dimensions: [day, ident, fVar]</span>
+                        <div class="quant-data-list">
+                            <div class="quant-data-row" style="flex-direction: column; align-items: flex-start; gap: 0.25rem;">
+                                <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+                                    <span class="quant-data-label" style="color: var(--accent-blue);" data-tooltip="High-frequency 4D array updated every 5 minutes during market hours.">5m Quote Array (4D)</span>
+                                    <span class="quant-data-val">{{ db_info.num_days }}d × {{ db_info.num_idents }}s × {{ db_info.num_qvars }}v</span>
+                                </div>
+                                <span style="font-size: 0.75rem; color: var(--card-sub-color); font-family: var(--font-mono);">Dimensions: [day, time, ident, qVar]</span>
                             </div>
-                            <span class="stat-val">{{ db_info.num_days }}d × {{ db_info.num_idents }}s × {{ db_info.num_fvars }}v</span>
+                            <div class="quant-data-row" style="flex-direction: column; align-items: flex-start; gap: 0.25rem; margin-top: 0.4rem;">
+                                <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+                                    <span class="quant-data-label" style="color: var(--accent-gold);" data-tooltip="Daily 3D array updated nightly at 04:00 AM with corporate &amp; fundamental metrics.">1d Fundamental Array (3D)</span>
+                                    <span class="quant-data-val">{{ db_info.num_days }}d × {{ db_info.num_idents }}s × {{ db_info.num_fvars }}v</span>
+                                </div>
+                                <span style="font-size: 0.75rem; color: var(--card-sub-color); font-family: var(--font-mono);">Dimensions: [day, ident, fVar]</span>
+                            </div>
                         </div>
                     </div>
                 </div>
 
             </div>
             {% else %}
-            <div class="error-box">
-                <h3 style="margin-bottom: 0.5rem;">Zarr Store Offline</h3>
-                <p>Could not connect to the database. Ensure master_db.zarr is populated and accessible.</p>
+            <div class="quant-box border-gold" style="padding: 2rem; text-align: center;">
+                <h3 style="color: #ef4444; font-family: var(--font-disp); margin-bottom: 0.5rem;">Zarr Store Offline</h3>
+                <p style="color: var(--sub-color);">Could not connect to the database. Ensure master_db.zarr is populated and accessible.</p>
             </div>
             {% endif %}
         </div>
@@ -95,143 +107,181 @@
             {% if db_info and db_info.table_data %}
             <div style="display: flex; flex-direction: column; gap: 1.5rem;">
                 
-                <!-- Plotly Chart Container: Closes & Marks -->
-                <div style="background-color: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 1.5rem;">
-                    <h3 style="color: #f1f5f9; margin-bottom: 1rem;">Close Prices vs Quote Mark Tickers</h3>
-                    <div id="plotly-chart" style="width: 100%; height: 350px;"></div>
-                    <div style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid #334155; color: #94a3b8; font-size: 0.85rem; line-height: 1.5; font-style: italic;">
-                        <strong>Note:</strong> Compares daily recorded close prices (from <code>1d</code> array, cadet blue line) with actively updated tickers that have at least one quote mark record (from <code>5m</code> array, purple line).
+                <!-- PLOTLY CHART 1: CLOSES & MARKS -->
+                <div class="quant-box border-blue">
+                    <div class="quant-head">
+                        <div class="quant-title">CLOSE PRICES VS QUOTE MARKS</div>
+                        <div class="quant-tag">TIMESERIES</div>
+                    </div>
+                    <div class="quant-sub">Compares daily recorded close prices (1d array) with actively updated quote mark tickers (5m array)</div>
+                    <div class="quant-body">
+                        <div id="plotly-chart" style="width: 100%; height: 340px;"></div>
                     </div>
                 </div>
 
-                <!-- Plotly Chart 2 Container: Daily NaN Percentage -->
-                <div style="background-color: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 1.5rem;">
-                    <h3 style="color: #f1f5f9; margin-bottom: 1rem;">Daily Database Null/NaN Density (%)</h3>
-                    <div id="plotly-changes-chart" style="width: 100%; height: 300px;"></div>
-                    <div style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid #334155; color: #94a3b8; font-size: 0.85rem; line-height: 1.5; font-style: italic;">
-                        <strong>Note:</strong> Compares total database Null/NaN density (rose line) with NaNs caused by standard quote variables (green line), extended hours variables (purple line), and Hard-to-Borrow parameters (yellow line). Standard quotes remain extremely flat, proving there is no standard trading data loss.
+                <!-- PLOTLY CHART 2: NULL/NAN DENSITY -->
+                <div class="quant-box border-gold">
+                    <div class="quant-head">
+                        <div class="quant-title">DATABASE NULL / NAN DENSITY (%)</div>
+                        <div class="quant-tag">DATA INTEGRITY</div>
+                    </div>
+                    <div class="quant-sub">Monitors NaN density across standard quotes, extended hours variables, and Hard-to-Borrow parameters</div>
+                    <div class="quant-body">
+                        <div id="plotly-changes-chart" style="width: 100%; height: 300px;"></div>
                     </div>
                 </div>
 
-                <!-- Daily Stats Table -->
-                <div style="background-color: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 1.5rem;">
-                    <h3 style="color: #f1f5f9; margin-bottom: 1rem;">Daily Records Summary</h3>
-                    <div style="max-height: 400px; overflow-y: auto;">
-                        <table style="width: 100%; border-collapse: collapse; text-align: left;">
-                            <thead>
-                                <tr style="border-bottom: 2px solid #334155; color: #94a3b8; font-size: 0.9rem;">
-                                    <th style="padding: 0.75rem 1rem;">Date</th>
-                                    <th style="padding: 0.75rem 1rem;">Close Prices</th>
-                                    <th style="padding: 0.75rem 1rem;">Quote Marks</th>
-                                    <th style="padding: 0.75rem 1rem;">Std Quote NaN %</th>
-                                    <th style="padding: 0.75rem 1rem;">Extended NaN %</th>
-                                    <th style="padding: 0.75rem 1rem;">HTB NaN %</th>
-                                    <th style="padding: 0.75rem 1rem;">Total NaN %</th>
-                                    <th style="padding: 0.75rem 1rem;">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for row in db_info.table_data %}
-                                <tr class="table-row">
-                                    <td style="padding: 0.75rem 1rem; color: #e2e8f0; font-family: monospace; font-size: 0.95rem;">{{ row.day }}</td>
-                                    <td style="padding: 0.75rem 1rem; color: #5f9ea0; font-weight: 600;">{{ row.close_prices }}</td>
-                                    <td style="padding: 0.75rem 1rem; color: #a855f7; font-weight: 600;">{{ row.mark_tickers }}</td>
-                                    <td style="padding: 0.75rem 1rem; color: #10b981; font-weight: 600;">{{ row.quote_nan_percent }}%</td>
-                                    <td style="padding: 0.75rem 1rem; color: #a855f7; font-weight: 600;">{{ row.extended_nan_percent }}%</td>
-                                    <td style="padding: 0.75rem 1rem; color: #eab308; font-weight: 600;">{{ row.htb_nan_percent }}%</td>
-                                    <td style="padding: 0.75rem 1rem; color: #f43f5e; font-weight: 600;">{{ row.nan_percent }}%</td>
-                                    <td style="padding: 0.75rem 1rem;">
-                                        {% if row.close_prices > 0 or row.mark_tickers > 0 %}
-                                        <span style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; color: #10b981; background-color: rgba(16, 185, 129, 0.1); padding: 0.2rem 0.5rem; border-radius: 20px;">
-                                            <span style="width: 6px; height: 6px; border-radius: 50%; background-color: #10b981;"></span>
-                                            Populated
-                                        </span>
-                                        {% else %}
-                                        <span style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; color: #ef4444; background-color: rgba(239, 68, 68, 0.1); padding: 0.2rem 0.5rem; border-radius: 20px;">
-                                            <span style="width: 6px; height: 6px; border-radius: 50%; background-color: #ef4444;"></span>
-                                            Empty
-                                        </span>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                <!-- DAILY STATS TABLE -->
+                <div class="quant-box border-emerald">
+                    <div class="quant-head">
+                        <div class="quant-title">DAILY RECORDS SUMMARY</div>
+                        <div class="quant-tag">LOG TABLE</div>
+                    </div>
+                    <div class="quant-sub">Complete historical record counts and NaN density percentages by day</div>
+                    <div class="quant-body" style="padding-top: 0.5rem;">
+                        <div style="max-height: 400px; overflow-y: auto;">
+                            <table style="width: 100%; border-collapse: collapse;">
+                                <thead>
+                                    <tr style="border-bottom: 2px solid var(--card-divider); color: var(--card-label-color); font-family: var(--font-disp); font-size: 0.775rem; text-transform: uppercase; letter-spacing: 0.08em;">
+                                        <th style="padding: 0.65rem 0.85rem; text-align: left;">
+                                            <span class="quant-th-label" data-tooltip="Trading date string (YYYY-MM-DD) corresponding to the daily Zarr database slice.">Date</span>
+                                        </th>
+                                        <th style="padding: 0.65rem 0.85rem; text-align: right;">
+                                            <span class="quant-th-label align-right" data-tooltip="Count of active tickers with non-null daily close price records stored in the 1d fundamental dataset for this day.">Close Prices</span>
+                                        </th>
+                                        <th style="padding: 0.65rem 0.85rem; text-align: right;">
+                                            <span class="quant-th-label align-right" data-tooltip="Count of unique ticker symbols with at least one valid 5-minute quote mark recorded in the 5m quote dataset for this day.">Quote Marks</span>
+                                        </th>
+                                        <th style="padding: 0.65rem 0.85rem; text-align: right;">
+                                            <span class="quant-th-label align-right" data-tooltip="Percentage of missing Null/NaN values across standard daytime quote variables (excludes extended hours and HTB fields). Low values indicate complete data ingestion.">Std Quote NaN</span>
+                                        </th>
+                                        <th style="padding: 0.65rem 0.85rem; text-align: right;">
+                                            <span class="quant-th-label align-right" data-tooltip="Percentage of Null/NaN values across extended hours quote fields (higher NaN density outside pre-market/after-hours trading windows is normal).">Ext Quote NaN</span>
+                                        </th>
+                                        <th style="padding: 0.65rem 0.85rem; text-align: right;">
+                                            <span class="quant-th-label align-right" data-tooltip="Percentage of Null/NaN values across Hard-to-Borrow short parameters (populated when short borrow fees are published by brokers).">HTB NaN</span>
+                                        </th>
+                                        <th style="padding: 0.65rem 0.85rem; text-align: right;">
+                                            <span class="quant-th-label align-right" data-tooltip="Overall Null/NaN density percentage across all quote variables in the 5m dataset array for this day.">Total NaN %</span>
+                                        </th>
+                                        <th style="padding: 0.65rem 0.85rem; text-align: center;">
+                                            <span class="quant-th-label align-center" data-tooltip="Data ingestion status for the trading day: Populated (active market data recorded) vs Empty.">Status</span>
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for row in db_info.table_data %}
+                                    <tr class="table-row">
+                                        <td style="padding: 0.6rem 0.85rem; color: var(--card-val-color); font-family: var(--font-mono); font-size: 0.825rem; text-align: left;">{{ row.day }}</td>
+                                        <td style="padding: 0.6rem 0.85rem; color: var(--accent-blue); font-family: var(--font-mono); font-weight: 600; font-size: 0.825rem; text-align: right; font-variant-numeric: tabular-nums;">{{"{:,}".format(row.close_prices)}}</td>
+                                        <td style="padding: 0.6rem 0.85rem; color: var(--accent-gold); font-family: var(--font-mono); font-weight: 600; font-size: 0.825rem; text-align: right; font-variant-numeric: tabular-nums;">{{"{:,}".format(row.mark_tickers)}}</td>
+                                        <td style="padding: 0.6rem 0.85rem; color: var(--accent-emerald); font-family: var(--font-mono); font-weight: 600; font-size: 0.825rem; text-align: right; font-variant-numeric: tabular-nums;">{{ row.quote_nan_percent }}%</td>
+                                        <td style="padding: 0.6rem 0.85rem; color: var(--accent-blue); font-family: var(--font-mono); font-weight: 600; font-size: 0.825rem; text-align: right; font-variant-numeric: tabular-nums;">{{ row.extended_nan_percent }}%</td>
+                                        <td style="padding: 0.6rem 0.85rem; color: var(--accent-gold); font-family: var(--font-mono); font-weight: 600; font-size: 0.825rem; text-align: right; font-variant-numeric: tabular-nums;">{{ row.htb_nan_percent }}%</td>
+                                        <td style="padding: 0.6rem 0.85rem; color: #ef4444; font-family: var(--font-mono); font-weight: 600; font-size: 0.825rem; text-align: right; font-variant-numeric: tabular-nums;">{{ row.nan_percent }}%</td>
+                                        <td style="padding: 0.6rem 0.85rem; text-align: center;">
+                                            {% if row.close_prices > 0 or row.mark_tickers > 0 %}
+                                            <span style="display: inline-block; font-family: var(--font-mono); font-size: 0.7rem; color: var(--accent-emerald); background-color: rgba(16, 185, 129, 0.12); padding: 0.15rem 0.5rem; border: 1px solid rgba(16, 185, 129, 0.3); text-transform: uppercase; letter-spacing: 0.05em;">
+                                                Populated
+                                            </span>
+                                            {% else %}
+                                            <span style="display: inline-block; font-family: var(--font-mono); font-size: 0.7rem; color: #ef4444; background-color: rgba(239, 68, 68, 0.12); padding: 0.15rem 0.5rem; border: 1px solid rgba(239, 68, 68, 0.3); text-transform: uppercase; letter-spacing: 0.05em;">
+                                                Empty
+                                            </span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
                 
             </div>
             {% else %}
-            <div class="empty-box">No days recorded in database.</div>
+            <div class="quant-box border-gold" style="padding: 2rem; text-align: center;">No days recorded in database.</div>
             {% endif %}
         </div>
 
         <!-- TICKERS TAB -->
         <div id="content-tickers" class="tab-content" style="display: none;">
             {% if db_info and db_info.idents %}
-            <div style="background-color: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 1.5rem;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
-                    <h3 style="color: #f1f5f9;">Active Ticker Universe</h3>
-                    <input type="text" id="ticker-search" oninput="filterTickers()" placeholder="Search symbols (e.g. AAPL)..." class="search-input">
+            <div class="quant-box border-blue">
+                <div class="quant-head">
+                    <div class="quant-title">ACTIVE TICKER UNIVERSE</div>
+                    <div class="quant-tag">{{ db_info.num_idents }} SYMBOLS</div>
                 </div>
-                <div id="tickers-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 0.5rem; max-height: 500px; overflow-y: auto; padding-right: 0.5rem;">
-                    {% for ticker in db_info.idents %}
-                    <div class="ticker-tag" data-symbol="{{ ticker }}" onclick="openTickerModal('{{ ticker }}')">
-                        {{ ticker }}
+                <div class="quant-sub">Click any symbol coordinate to inspect metadata and historical price trends</div>
+                <div class="quant-body">
+                    <div style="margin-bottom: 1.25rem; display: flex; justify-content: flex-end;">
+                        <input type="text" id="ticker-search" oninput="filterTickers()" placeholder="Search symbols (e.g. AAPL)..." class="quant-search-input">
                     </div>
-                    {% endfor %}
-                </div>
-                <div id="ticker-no-results" style="display: none; text-align: center; color: #94a3b8; padding: 2rem 0;">
-                    No matching tickers found.
+                    <div id="tickers-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(95px, 1fr)); gap: 0.5rem; max-height: 480px; overflow-y: auto; padding-right: 0.5rem;">
+                        {% for ticker in db_info.idents %}
+                        <div class="quant-ticker-tag" data-symbol="{{ ticker }}" onclick="openTickerModal('{{ ticker }}')">
+                            {{ ticker }}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div id="ticker-no-results" style="display: none; text-align: center; color: var(--sub-color); padding: 2rem 0; font-family: var(--font-disp);">
+                        No matching tickers found.
+                    </div>
                 </div>
             </div>
             {% else %}
-            <div class="empty-box">No tickers recorded in database.</div>
+            <div class="quant-box border-gold" style="padding: 2rem; text-align: center;">No tickers recorded in database.</div>
             {% endif %}
         </div>
 
         <!-- FIELDS TAB -->
         <div id="content-fields" class="tab-content" style="display: none;">
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; flex-wrap: wrap;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1.5rem;">
                 
                 <!-- Quote Variables -->
-                <div style="background-color: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 1.5rem;">
-                    <h3 style="color: #f1f5f9; margin-bottom: 1rem; border-bottom: 1px solid #334155; padding-bottom: 0.5rem; display: flex; justify-content: space-between;">
-                        <span>Quote Variables</span>
-                        <span style="font-size: 0.9rem; color: #94a3b8;">{{ db_info.num_qvars if db_info else 0 }} variables</span>
-                    </h3>
-                    {% if db_info and db_info.qvars %}
-                    <div style="display: flex; flex-direction: column; gap: 0.4rem; max-height: 500px; overflow-y: auto;">
-                        {% for var in db_info.qvars %}
-                        <div class="variable-item">
-                            <span class="var-badge qvar-badge">quote</span>
-                            <span class="var-name">{{ var }}</span>
-                        </div>
-                        {% endfor %}
+                <div class="quant-box border-blue">
+                    <div class="quant-head">
+                        <div class="quant-title">QUOTE VARIABLES</div>
+                        <div class="quant-tag">{{ db_info.num_qvars if db_info else 0 }} VARS</div>
                     </div>
-                    {% else %}
-                    <div class="empty-box">No quote variables.</div>
-                    {% endif %}
+                    <div class="quant-sub">High-frequency 5-minute level-1 quote &amp; trade metrics</div>
+                    <div class="quant-body">
+                        {% if db_info and db_info.qvars %}
+                        <div style="display: flex; flex-direction: column; gap: 0.4rem; max-height: 480px; overflow-y: auto;">
+                            {% for var in db_info.qvars %}
+                            <div class="quant-var-item">
+                                <span class="quant-var-badge qvar-badge">quote</span>
+                                <span class="quant-var-name">{{ var }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div style="color: var(--sub-color);">No quote variables.</div>
+                        {% endif %}
+                    </div>
                 </div>
 
                 <!-- Fundamental Variables -->
-                <div style="background-color: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 1.5rem;">
-                    <h3 style="color: #f1f5f9; margin-bottom: 1rem; border-bottom: 1px solid #334155; padding-bottom: 0.5rem; display: flex; justify-content: space-between;">
-                        <span>Fundamental Variables</span>
-                        <span style="font-size: 0.9rem; color: #94a3b8;">{{ db_info.num_fvars if db_info else 0 }} variables</span>
-                    </h3>
-                    {% if db_info and db_info.fvars %}
-                    <div style="display: flex; flex-direction: column; gap: 0.4rem; max-height: 500px; overflow-y: auto;">
-                        {% for var in db_info.fvars %}
-                        <div class="variable-item">
-                            <span class="var-badge fvar-badge">fundamental</span>
-                            <span class="var-name">{{ var }}</span>
-                        </div>
-                        {% endfor %}
+                <div class="quant-box border-gold">
+                    <div class="quant-head">
+                        <div class="quant-title">FUNDAMENTAL VARIABLES</div>
+                        <div class="quant-tag">{{ db_info.num_fvars if db_info else 0 }} VARS</div>
                     </div>
-                    {% else %}
-                    <div class="empty-box">No fundamental variables.</div>
-                    {% endif %}
+                    <div class="quant-sub">Daily company fundamentals, ratios, and SEC EDGAR parameters</div>
+                    <div class="quant-body">
+                        {% if db_info and db_info.fvars %}
+                        <div style="display: flex; flex-direction: column; gap: 0.4rem; max-height: 480px; overflow-y: auto;">
+                            {% for var in db_info.fvars %}
+                            <div class="quant-var-item">
+                                <span class="quant-var-badge fvar-badge">fundamental</span>
+                                <span class="quant-var-name">{{ var }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div style="color: var(--sub-color);">No fundamental variables.</div>
+                        {% endif %}
+                    </div>
                 </div>
 
             </div>
@@ -241,96 +291,129 @@
 </div>
 
 <style>
-    /* Tab Buttons Styling */
-    .tab-btn {
-        background: transparent;
-        border: none;
-        color: #94a3b8;
-        padding: 0.75rem 1.25rem;
-        font-size: 1rem;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        border-radius: 6px;
-    }
-    .tab-btn:hover {
-        color: #f1f5f9;
-        background-color: #0f172a;
-    }
-    .tab-btn.active-tab {
-        color: #38bdf8;
-        background-color: #0f172a;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    }
-
-    /* Cards */
-    .db-card {
-        background-color: #1e293b;
-        border: 1px solid #334155;
-        border-radius: 12px;
-        padding: 1.5rem;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-        transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
-    }
-    .db-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1);
-        border-color: #475569;
-    }
-    .card-title {
-        color: #94a3b8;
-        font-size: 0.9rem;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        margin-bottom: 1rem;
-        font-weight: 600;
-    }
-    .card-stats {
-        border-top: 1px solid #334155;
-        padding-top: 0.75rem;
+    /* TAB BAR STYLING */
+    .db-tab-bar {
+        font-family: var(--font-disp);
         display: flex;
-        flex-direction: column;
         gap: 0.5rem;
-        font-size: 0.85rem;
-        color: #94a3b8;
+        border-bottom: 2px solid var(--card-divider);
+        padding-bottom: 0.5rem;
+        margin-bottom: 2rem;
+        flex-wrap: wrap;
     }
-    .stat-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
+    .db-tab-btn {
+        background: transparent;
+        border: 1px solid var(--card-divider);
+        color: var(--sub-color);
+        padding: 0.5rem 1.1rem;
+        font-size: 0.8rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border-radius: 0 !important; /* Sharp square corners */
     }
-    .stat-val {
-        color: #cbd5e1;
-        font-weight: 600;
+    .db-tab-btn:hover {
+        color: var(--card-title-color);
+        border-color: var(--card-border);
+        background-color: rgba(255, 255, 255, 0.05);
+    }
+    .db-tab-btn.active-tab {
+        color: #000000;
+        background-color: #8e99a9; /* Gray accent pill matching nav bar */
+        border-color: #8e99a9;
+        font-weight: 800;
     }
 
-    /* Badges / Tags */
-    .ticker-tag {
-        background-color: #0f172a;
-        border: 1px solid #334155;
-        color: #e2e8f0;
+    /* TICKER TAGS */
+    .quant-ticker-tag {
+        background-color: rgba(0, 0, 0, 0.2);
+        border: 1px solid var(--card-divider);
+        color: var(--card-val-color);
+        font-family: var(--font-mono);
         padding: 0.4rem 0.6rem;
-        border-radius: 4px;
+        border-radius: 0 !important; /* Sharp square corners */
         text-align: center;
-        font-size: 0.85rem;
+        font-size: 0.825rem;
         font-weight: 600;
         transition: all 0.2s ease;
         cursor: pointer;
     }
-    .ticker-tag:hover {
-        border-color: #38bdf8;
-        color: #38bdf8;
-        transform: scale(1.05);
+    .quant-ticker-tag:hover {
+        border-color: var(--accent-gold);
+        color: var(--accent-gold);
+        transform: translateY(-1px);
     }
 
-    /* Modal Overlay */
+    /* SEARCH INPUT */
+    .quant-search-input {
+        background-color: rgba(0, 0, 0, 0.2);
+        border: 1px solid var(--card-divider);
+        color: var(--card-val-color);
+        font-family: var(--font-mono);
+        padding: 0.45rem 0.9rem;
+        border-radius: 0 !important;
+        outline: none;
+        width: 240px;
+        font-size: 0.85rem;
+        transition: border-color 0.2s;
+    }
+    .quant-search-input:focus {
+        border-color: var(--accent-blue);
+    }
+
+    /* VARIABLE BADGES */
+    .quant-var-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        background-color: rgba(0, 0, 0, 0.2);
+        padding: 0.45rem 0.75rem;
+        border-radius: 0 !important;
+        border: 1px solid var(--card-divider);
+    }
+    .quant-var-badge {
+        font-family: var(--font-mono);
+        font-size: 0.65rem;
+        text-transform: uppercase;
+        font-weight: bold;
+        padding: 0.15rem 0.4rem;
+        border-radius: 0 !important;
+        letter-spacing: 0.05em;
+    }
+    .qvar-badge {
+        background-color: rgba(47, 95, 166, 0.2);
+        color: var(--accent-blue);
+        border: 1px solid var(--accent-blue);
+    }
+    .fvar-badge {
+        background-color: rgba(201, 162, 39, 0.2);
+        color: var(--accent-gold);
+        border: 1px solid var(--accent-gold);
+    }
+    .quant-var-name {
+        font-family: var(--font-mono);
+        color: var(--card-val-color);
+        font-size: 0.85rem;
+    }
+
+    /* TABLE ROWS */
+    .table-row {
+        border-bottom: 1px solid var(--card-divider);
+        transition: background-color 0.2s;
+    }
+    .table-row:hover {
+        background-color: rgba(255, 255, 255, 0.04);
+    }
+
+    /* MODAL OVERLAY */
     .modal-overlay {
         position: fixed;
         top: 0;
         left: 0;
         width: 100%;
         height: 100%;
-        background-color: rgba(15, 23, 42, 0.75);
+        background-color: rgba(0, 0, 0, 0.75);
         backdrop-filter: blur(8px);
         display: flex;
         align-items: center;
@@ -338,187 +421,94 @@
         z-index: 1000;
         opacity: 0;
         pointer-events: none;
-        transition: opacity 0.3s ease;
+        transition: opacity 0.25s ease;
     }
     .modal-overlay.active {
         opacity: 1;
         pointer-events: auto;
     }
     
-    /* Modal Box */
     .modal-box {
-        background-color: #1e293b;
-        border: 1px solid #334155;
-        border-radius: 16px;
+        background-color: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-top: 3px solid var(--accent-blue);
+        border-radius: 0 !important; /* Sharp square corners */
         width: 90%;
         max-width: 700px;
         max-height: 90vh;
         overflow-y: auto;
-        padding: 2rem;
-        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-        transform: translateY(20px);
-        transition: transform 0.3s ease;
+        padding: 1.75rem;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+        transform: translateY(15px);
+        transition: transform 0.25s ease;
         position: relative;
     }
     .modal-overlay.active .modal-box {
         transform: translateY(0);
     }
     
-    /* Modal Close Button */
     .modal-close {
         position: absolute;
         top: 1rem;
         right: 1.25rem;
         background: transparent;
         border: none;
-        color: #94a3b8;
+        color: var(--sub-color);
         font-size: 1.5rem;
         cursor: pointer;
         transition: color 0.2s;
     }
     .modal-close:hover {
-        color: #f1f5f9;
+        color: var(--card-title-color);
     }
 
-    /* Modal Grid Stats */
     .modal-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-        gap: 1rem;
+        gap: 0.85rem;
         margin-bottom: 1.5rem;
     }
     .modal-stat-card {
-        background-color: #0f172a;
-        border: 1px solid #334155;
-        border-radius: 8px;
+        background-color: rgba(0, 0, 0, 0.2);
+        border: 1px solid var(--card-divider);
+        border-radius: 0 !important;
         padding: 0.75rem;
         text-align: center;
     }
     .modal-stat-label {
-        font-size: 0.75rem;
-        color: #94a3b8;
+        font-family: var(--font-disp);
+        font-size: 0.725rem;
+        color: var(--card-label-color);
         text-transform: uppercase;
         letter-spacing: 0.05em;
         margin-bottom: 0.25rem;
     }
     .modal-stat-value {
-        font-size: 1.15rem;
+        font-family: var(--font-mono);
+        font-size: 1.05rem;
         font-weight: 700;
-        color: #f8fafc;
+        color: var(--card-val-color);
     }
 
     @keyframes spin {
         0% { transform: rotate(0deg); }
         100% { transform: rotate(360deg); }
     }
-
-    /* Inputs */
-    .search-input {
-        background-color: #0f172a;
-        border: 1px solid #334155;
-        color: #f1f5f9;
-        padding: 0.5rem 1rem;
-        border-radius: 6px;
-        outline: none;
-        width: 250px;
-        font-size: 0.9rem;
-        transition: border-color 0.2s;
-    }
-    .search-input:focus {
-        border-color: #38bdf8;
-    }
-
-    /* Variables view */
-    .variable-item {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        background-color: #0f172a;
-        padding: 0.5rem 0.75rem;
-        border-radius: 6px;
-        border: 1px solid #334155;
-    }
-    .var-badge {
-        font-size: 0.7rem;
-        text-transform: uppercase;
-        font-weight: bold;
-        padding: 0.15rem 0.4rem;
-        border-radius: 4px;
-        letter-spacing: 0.05em;
-    }
-    .qvar-badge {
-        background-color: rgba(56, 189, 248, 0.15);
-        color: #38bdf8;
-        border: 1px solid rgba(56, 189, 248, 0.3);
-    }
-    .fvar-badge {
-        background-color: rgba(168, 85, 247, 0.15);
-        color: #a855f7;
-        border: 1px solid rgba(168, 85, 247, 0.3);
-    }
-    .var-name {
-        font-family: monospace;
-        color: #e2e8f0;
-        font-size: 0.9rem;
-    }
-
-    /* Table styles */
-    .table-row {
-        border-bottom: 1px solid #334155;
-        transition: background-color 0.2s;
-    }
-    .table-row:hover {
-        background-color: #0f172a;
-    }
-
-    /* Scrollbars */
-    ::-webkit-scrollbar {
-        width: 6px;
-    }
-    ::-webkit-scrollbar-track {
-        background: #0f172a;
-    }
-    ::-webkit-scrollbar-thumb {
-        background: #334155;
-        border-radius: 3px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-        background: #475569;
-    }
-
-    /* Fallback boxes */
-    .empty-box, .error-box {
-        background-color: #1e293b;
-        border: 1px solid #334155;
-        border-radius: 12px;
-        padding: 2rem;
-        text-align: center;
-        color: #94a3b8;
-    }
-    .error-box {
-        border-color: #ef4444;
-        color: #f87171;
-    }
 </style>
 
 <script>
-    // Flag to track whether the Plotly chart has been rendered
     let chartRendered = false;
 
     function switchTab(tabId) {
-        // Hide all contents
         const contents = document.querySelectorAll('.tab-content');
         contents.forEach(el => el.style.display = 'none');
         
-        // Deactivate all tab buttons
-        const buttons = document.querySelectorAll('.tab-btn');
+        const buttons = document.querySelectorAll('.db-tab-btn');
         buttons.forEach(el => el.classList.remove('active-tab'));
         
-        // Show active content & button
         document.getElementById('content-' + tabId).style.display = 'block';
         document.getElementById('tab-' + tabId).classList.add('active-tab');
 
-        // Render chart if switching to daily-stats tab and not yet rendered
         if (tabId === 'daily-stats' && !chartRendered) {
             renderPlotlyChart();
         }
@@ -529,7 +519,6 @@
         const changesChartDiv = document.getElementById('plotly-changes-chart');
         if (!chartDiv) return;
 
-        // Parse JSON data sent from Flask
         const days = {% if db_info and db_info.days_json %}{{ db_info.days_json|safe }}{% else %}[]{% endif %};
         const closePrices = {% if db_info and db_info.close_prices_json %}{{ db_info.close_prices_json|safe }}{% else %}[]{% endif %};
         const markTickers = {% if db_info and db_info.mark_tickers_json %}{{ db_info.mark_tickers_json|safe }}{% else %}[]{% endif %};
@@ -539,71 +528,72 @@
         const htbNaNPercents = {% if db_info and db_info.htb_nan_percents_json %}{{ db_info.htb_nan_percents_json|safe }}{% else %}[]{% endif %};
         const inactiveNaNPercents = {% if db_info and db_info.inactive_nan_percents_json %}{{ db_info.inactive_nan_percents_json|safe }}{% else %}[]{% endif %};
 
+        // Get computed style colors
+        const style = getComputedStyle(document.documentElement);
+        const cardValColor = style.getPropertyValue('--card-val-color').trim() || '#f8fafc';
+        const cardSubColor = style.getPropertyValue('--card-sub-color').trim() || '#94a3b8';
+        const cardBg = style.getPropertyValue('--card-bg').trim() || '#12243d';
+        const cardDivider = 'rgba(142, 153, 169, 0.12)';
+        const accentBlue = style.getPropertyValue('--accent-blue').trim() || '#2f5fa6';
+        const accentGold = style.getPropertyValue('--accent-gold').trim() || '#c9a227';
+        const accentEmerald = style.getPropertyValue('--accent-emerald').trim() || '#10b981';
+
+        const hoverBoxStyle = {
+            bgcolor: cardBg,
+            bordercolor: accentGold,
+            font: { family: 'IBM Plex Mono, monospace', size: 12, color: cardValColor }
+        };
+
         // Graph 1: Close Prices & Quote Marks
         const traceClose = {
             x: days,
             y: closePrices,
-            name: 'Close Prices',
+            name: 'Close Prices (1d)',
             type: 'scatter',
-            mode: 'lines+markers',
-            line: {
-                color: '#5f9ea0',
-                width: 2.5
-            },
-            marker: {
-                color: '#5f9ea0',
-                size: 6,
-                line: {
-                    color: '#1e293b',
-                    width: 1
-                }
-            },
-            hovertemplate: '<b>Date:</b> %{x}<br><b>Close Prices:</b> %{y}<extra></extra>'
+            mode: 'lines',
+            fill: 'tozeroy',
+            fillcolor: 'rgba(47, 95, 166, 0.06)',
+            line: { color: accentBlue, width: 2 },
+            hovertemplate: '<b>Date:</b> %{x}<br><b>Close Prices:</b> %{y:,.0f}<extra></extra>'
         };
 
         const traceMark = {
             x: days,
             y: markTickers,
-            name: 'Quote Marks',
+            name: 'Quote Marks (5m)',
             type: 'scatter',
-            mode: 'lines+markers',
-            line: {
-                color: '#a855f7',
-                width: 2.5
-            },
-            marker: {
-                color: '#a855f7',
-                size: 6,
-                line: {
-                    color: '#1e293b',
-                    width: 1
-                }
-            },
-            hovertemplate: '<b>Date:</b> %{x}<br><b>Quote Marks:</b> %{y}<extra></extra>'
+            mode: 'lines',
+            line: { color: accentGold, width: 2 },
+            hovertemplate: '<b>Date:</b> %{x}<br><b>Quote Marks:</b> %{y:,.0f}<extra></extra>'
         };
 
         const layout = {
             paper_bgcolor: 'rgba(0,0,0,0)',
             plot_bgcolor: 'rgba(0,0,0,0)',
             xaxis: {
-                gridcolor: '#334155',
-                tickcolor: '#334155',
-                tickfont: { color: '#f8fafc', family: 'system-ui, sans-serif', size: 12 },
+                gridcolor: cardDivider,
+                zeroline: false,
+                showline: false,
+                tickcolor: cardDivider,
+                tickfont: { color: cardSubColor, family: 'IBM Plex Mono, monospace', size: 10 },
                 type: 'date'
             },
             yaxis: {
-                gridcolor: '#334155',
-                tickcolor: '#334155',
-                tickfont: { color: '#f8fafc', family: 'system-ui, sans-serif', size: 12 },
+                gridcolor: cardDivider,
+                zeroline: false,
+                showline: false,
+                tickcolor: cardDivider,
+                tickfont: { color: cardSubColor, family: 'IBM Plex Mono, monospace', size: 10 },
                 title: {
-                    text: 'Ticker Count',
-                    font: { color: '#f8fafc', size: 14, family: 'system-ui, sans-serif', weight: 'bold' }
+                    text: 'POPULATED TICKER COUNT',
+                    font: { color: cardValColor, size: 10, family: 'Archivo, sans-serif', weight: '700', letterSpacing: '0.08em' }
                 }
             },
-            margin: { t: 20, r: 20, b: 50, l: 60 },
+            margin: { t: 15, r: 15, b: 40, l: 55 },
             hovermode: 'closest',
+            hoverlabel: hoverBoxStyle,
             legend: {
-                font: { color: '#cbd5e1' },
+                font: { color: cardValColor, family: 'IBM Plex Mono, monospace', size: 11 },
                 orientation: 'h',
                 yanchor: 'bottom',
                 y: 1.02,
@@ -612,11 +602,7 @@
             }
         };
 
-        const config = {
-            responsive: true,
-            displayModeBar: false
-        };
-
+        const config = { responsive: true, displayModeBar: false };
         Plotly.newPlot('plotly-chart', [traceClose, traceMark], layout, config);
 
         // Graph 2: Daily NaN Percentage
@@ -626,10 +612,11 @@
                 y: nanPercents,
                 name: 'Total Null/NaN %',
                 type: 'scatter',
-                mode: 'lines+markers',
-                line: { color: '#f43f5e', width: 2.5 },
-                marker: { color: '#f43f5e', size: 6, line: { color: '#1e293b', width: 1 } },
-                hovertemplate: '<b>Date:</b> %{x}<br><b>Total NaN:</b> %{y}%<extra></extra>'
+                mode: 'lines',
+                fill: 'tozeroy',
+                fillcolor: 'rgba(239, 68, 68, 0.05)',
+                line: { color: '#ef4444', width: 2 },
+                hovertemplate: '<b>Date:</b> %{x}<br><b>Total NaN:</b> %{y:.2f}%<extra></extra>'
             };
 
             const traceQuote = {
@@ -637,10 +624,9 @@
                 y: quoteNaNPercents,
                 name: 'Std Quotes NaN %',
                 type: 'scatter',
-                mode: 'lines+markers',
-                line: { color: '#10b981', width: 2 },
-                marker: { color: '#10b981', size: 5, line: { color: '#1e293b', width: 1 } },
-                hovertemplate: '<b>Date:</b> %{x}<br><b>Std Quotes NaN:</b> %{y}%<extra></extra>'
+                mode: 'lines',
+                line: { color: accentEmerald, width: 1.75 },
+                hovertemplate: '<b>Date:</b> %{x}<br><b>Std Quotes NaN:</b> %{y:.2f}%<extra></extra>'
             };
 
             const traceExtended = {
@@ -648,10 +634,9 @@
                 y: extendedNaNPercents,
                 name: 'Extended Hours NaN %',
                 type: 'scatter',
-                mode: 'lines+markers',
-                line: { color: '#a855f7', width: 2 },
-                marker: { color: '#a855f7', size: 5, line: { color: '#1e293b', width: 1 } },
-                hovertemplate: '<b>Date:</b> %{x}<br><b>Extended Hours NaN:</b> %{y}%<extra></extra>'
+                mode: 'lines',
+                line: { color: accentGold, width: 1.75 },
+                hovertemplate: '<b>Date:</b> %{x}<br><b>Extended Hours NaN:</b> %{y:.2f}%<extra></extra>'
             };
 
             const traceHtb = {
@@ -659,45 +644,38 @@
                 y: htbNaNPercents,
                 name: 'HTB Info NaN %',
                 type: 'scatter',
-                mode: 'lines+markers',
-                line: { color: '#eab308', width: 2 },
-                marker: { color: '#eab308', size: 5, line: { color: '#1e293b', width: 1 } },
-                hovertemplate: '<b>Date:</b> %{x}<br><b>HTB NaN:</b> %{y}%<extra></extra>'
-            };
-
-            const traceInactive = {
-                x: days,
-                y: inactiveNaNPercents,
-                name: 'Inactive Tickers %',
-                type: 'scatter',
-                mode: 'lines+markers',
-                line: { color: '#94a3b8', width: 2, dash: 'dash' },
-                marker: { color: '#94a3b8', size: 5, line: { color: '#1e293b', width: 1 } },
-                hovertemplate: '<b>Date:</b> %{x}<br><b>Inactive Tickers %:</b> %{y}%<extra></extra>'
+                mode: 'lines',
+                line: { color: accentBlue, width: 1.75 },
+                hovertemplate: '<b>Date:</b> %{x}<br><b>HTB NaN:</b> %{y:.2f}%<extra></extra>'
             };
 
             const layoutNaN = {
                 paper_bgcolor: 'rgba(0,0,0,0)',
                 plot_bgcolor: 'rgba(0,0,0,0)',
                 xaxis: {
-                    gridcolor: '#334155',
-                    tickcolor: '#334155',
-                    tickfont: { color: '#f8fafc', family: 'system-ui, sans-serif', size: 12 },
+                    gridcolor: cardDivider,
+                    zeroline: false,
+                    showline: false,
+                    tickcolor: cardDivider,
+                    tickfont: { color: cardSubColor, family: 'IBM Plex Mono, monospace', size: 10 },
                     type: 'date'
                 },
                 yaxis: {
-                    gridcolor: '#334155',
-                    tickcolor: '#334155',
-                    tickfont: { color: '#f8fafc', family: 'system-ui, sans-serif', size: 12 },
+                    gridcolor: cardDivider,
+                    zeroline: false,
+                    showline: false,
+                    tickcolor: cardDivider,
+                    tickfont: { color: cardSubColor, family: 'IBM Plex Mono, monospace', size: 10 },
                     title: {
-                        text: 'Null/NaN Density (%)',
-                        font: { color: '#f8fafc', size: 14, family: 'system-ui, sans-serif', weight: 'bold' }
+                        text: 'NULL / NAN DENSITY (%)',
+                        font: { color: cardValColor, size: 10, family: 'Archivo, sans-serif', weight: '700', letterSpacing: '0.08em' }
                     }
                 },
-                margin: { t: 20, r: 20, b: 50, l: 60 },
+                margin: { t: 15, r: 15, b: 40, l: 55 },
                 hovermode: 'closest',
+                hoverlabel: hoverBoxStyle,
                 legend: {
-                    font: { color: '#cbd5e1' },
+                    font: { color: cardValColor, family: 'IBM Plex Mono, monospace', size: 11 },
                     orientation: 'h',
                     yanchor: 'bottom',
                     y: 1.02,
@@ -706,7 +684,7 @@
                 }
             };
 
-            Plotly.newPlot('plotly-changes-chart', [traceTotal, traceQuote, traceExtended, traceHtb, traceInactive], layoutNaN, config);
+            Plotly.newPlot('plotly-changes-chart', [traceTotal, traceQuote, traceExtended, traceHtb], layoutNaN, config);
         }
 
         chartRendered = true;
@@ -714,7 +692,7 @@
 
     function filterTickers() {
         const query = document.getElementById('ticker-search').value.toUpperCase().trim();
-        const tags = document.querySelectorAll('.ticker-tag');
+        const tags = document.querySelectorAll('.quant-ticker-tag');
         let anyVisible = false;
         
         tags.forEach(tag => {
@@ -747,7 +725,6 @@
         body.style.display = 'none';
         modal.classList.add('active');
         
-        // Fetch details from the API
         fetch('/api/ticker/' + symbol)
             .then(res => {
                 if (!res.ok) throw new Error('API failure');
@@ -757,7 +734,6 @@
                 loading.style.display = 'none';
                 body.style.display = 'block';
                 
-                // Populate text fields
                 document.getElementById('modal-ticker-name').innerText = data.asset_type || '';
                 document.getElementById('stat-exchange').innerText = data.exchange;
                 document.getElementById('stat-asset-type').innerText = data.asset_type;
@@ -768,7 +744,6 @@
                 document.getElementById('stat-vol').innerText = data.volume_10d + ' / ' + data.volume_1yr;
                 document.getElementById('stat-lifespan').innerText = data.total_days + ' Days (' + (data.first_date ? data.first_date.substring(5) : '') + ' to ' + (data.last_date ? data.last_date.substring(5) : '') + ')';
                 
-                // Plot Plotly chart
                 renderDetailChart(data.chart_dates, data.chart_prices, symbol);
             })
             .catch(err => {
@@ -779,16 +754,18 @@
     }
 
     function renderDetailChart(dates, prices, symbol) {
+        const style = getComputedStyle(document.documentElement);
+        const cardValColor = style.getPropertyValue('--card-val-color').trim() || '#f8fafc';
+        const cardDivider = style.getPropertyValue('--card-divider').trim() || '#334155';
+        const accentBlue = style.getPropertyValue('--accent-blue').trim() || '#2f5fa6';
+
         const trace = {
             x: dates,
             y: prices,
             name: symbol,
             type: 'scatter',
             mode: 'lines',
-            line: {
-                color: '#38bdf8',
-                width: 2
-            },
+            line: { color: accentBlue, width: 2 },
             hovertemplate: '<b>Date:</b> %{x}<br><b>Price:</b> $%{y:.2f}<extra></extra>'
         };
 
@@ -796,29 +773,22 @@
             paper_bgcolor: 'rgba(0,0,0,0)',
             plot_bgcolor: 'rgba(0,0,0,0)',
             xaxis: {
-                gridcolor: '#334155',
-                tickcolor: '#334155',
-                tickfont: { color: '#f8fafc', family: 'system-ui, sans-serif', size: 10 },
+                gridcolor: cardDivider,
+                tickcolor: cardDivider,
+                tickfont: { color: cardValColor, family: 'IBM Plex Mono, monospace', size: 10 },
                 type: 'date'
             },
             yaxis: {
-                gridcolor: '#334155',
-                tickcolor: '#334155',
-                tickfont: { color: '#f8fafc', family: 'system-ui, sans-serif', size: 10 },
-                title: {
-                    text: 'Price ($)',
-                    font: { color: '#f8fafc', size: 12, family: 'system-ui, sans-serif' }
-                }
+                gridcolor: cardDivider,
+                tickcolor: cardDivider,
+                tickfont: { color: cardValColor, family: 'IBM Plex Mono, monospace', size: 10 },
+                title: { text: 'Price ($)', font: { color: cardValColor, size: 12, family: 'Archivo, sans-serif' } }
             },
             margin: { t: 10, r: 10, b: 35, l: 45 },
             hovermode: 'closest'
         };
 
-        const config = {
-            responsive: true,
-            displayModeBar: false
-        };
-
+        const config = { responsive: true, displayModeBar: false };
         Plotly.newPlot('ticker-history-chart', [trace], layout, config);
     }
 
@@ -833,20 +803,19 @@
 <div id="ticker-modal" class="modal-overlay" onclick="closeTickerModal(event)">
     <div class="modal-box" onclick="event.stopPropagation()">
         <button class="modal-close" onclick="closeTickerModal(event, true)">&times;</button>
-        <div style="display: flex; align-items: baseline; gap: 0.75rem; border-bottom: 1px solid #334155; padding-bottom: 0.75rem; margin-bottom: 1.5rem;">
-            <h2 id="modal-ticker-symbol" style="font-size: 2.2rem; font-weight: bold; color: #38bdf8; margin: 0;">AAPL</h2>
-            <span id="modal-ticker-name" style="font-size: 1.1rem; color: #cbd5e1; font-weight: 600;">APPLE INC.</span>
+        <div style="display: flex; align-items: baseline; gap: 0.75rem; border-bottom: 1px solid var(--card-divider); padding-bottom: 0.75rem; margin-bottom: 1.5rem;">
+            <h2 id="modal-ticker-symbol" style="font-family: var(--font-mono); font-size: 2.2rem; font-weight: bold; color: var(--accent-blue); margin: 0;">AAPL</h2>
+            <span id="modal-ticker-name" style="font-family: var(--font-disp); font-size: 1rem; color: var(--card-sub-color); font-weight: 600;">APPLE INC.</span>
         </div>
         
-        <!-- Spinner / Loading State -->
+        <!-- Loading State -->
         <div id="modal-loading" style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 250px; gap: 1rem;">
-            <div style="width: 40px; height: 40px; border: 4px solid #334155; border-top-color: #38bdf8; border-radius: 50%; animation: spin 1s linear infinite;"></div>
-            <div style="color: #94a3b8; font-size: 0.95rem;">Retrieving dataset metrics...</div>
+            <div style="width: 36px; height: 36px; border: 3px solid var(--card-divider); border-top-color: var(--accent-blue); border-radius: 50%; animation: spin 1s linear infinite;"></div>
+            <div style="color: var(--sub-color); font-family: var(--font-disp); font-size: 0.9rem;">Retrieving dataset metrics...</div>
         </div>
         
-        <!-- Modal Body (Hidden while loading) -->
+        <!-- Modal Body -->
         <div id="modal-body" style="display: none;">
-            <!-- Stats Grid -->
             <div class="modal-grid">
                 <div class="modal-stat-card">
                     <div class="modal-stat-label">Exchange</div>
@@ -854,11 +823,11 @@
                 </div>
                 <div class="modal-stat-card">
                     <div class="modal-stat-label">Asset Type</div>
-                    <div id="stat-asset-type" class="modal-stat-value" style="font-size: 0.9rem; line-height: 1.2; word-break: break-word;">Common Stock</div>
+                    <div id="stat-asset-type" class="modal-stat-value" style="font-size: 0.85rem; line-height: 1.2; word-break: break-word;">Common Stock</div>
                 </div>
                 <div class="modal-stat-card">
                     <div class="modal-stat-label">Latest Close</div>
-                    <div id="stat-close" class="modal-stat-value" style="color: #5f9ea0;">$182.45</div>
+                    <div id="stat-close" class="modal-stat-value" style="color: var(--accent-blue);">$182.45</div>
                 </div>
                 <div class="modal-stat-card">
                     <div class="modal-stat-label">P/E Ratio</div>
@@ -869,7 +838,7 @@
                     <div id="stat-eps" class="modal-stat-value">$6.13</div>
                 </div>
                 <div class="modal-stat-card">
-                    <div class="modal-stat-label">Div Yield (Freq)</div>
+                    <div class="modal-stat-label">Div Yield</div>
                     <div id="stat-div" class="modal-stat-value">0.52% (Q)</div>
                 </div>
                 <div class="modal-stat-card">
@@ -877,15 +846,14 @@
                     <div id="stat-vol" class="modal-stat-value">52.3M / 53M</div>
                 </div>
                 <div class="modal-stat-card">
-                    <div class="modal-stat-label">Recorded Lifespan</div>
-                    <div id="stat-lifespan" class="modal-stat-value" style="font-size: 0.95rem;">131 Days</div>
+                    <div class="modal-stat-label">Lifespan</div>
+                    <div id="stat-lifespan" class="modal-stat-value" style="font-size: 0.9rem;">131 Days</div>
                 </div>
             </div>
             
-            <!-- Price Chart Container -->
-            <div style="background-color: #0f172a; border: 1px solid #334155; border-radius: 12px; padding: 1rem; margin-top: 1.5rem;">
-                <h4 style="color: #f1f5f9; margin: 0 0 1rem 0; font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: bold; color: #94a3b8;">Historical Price Trend (Daily Close)</h4>
-                <div id="ticker-history-chart" style="width: 100%; height: 260px;"></div>
+            <div class="quant-box border-blue" style="padding: 1rem; margin-top: 1.25rem;">
+                <h4 style="font-family: var(--font-disp); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; color: var(--card-title-color); margin: 0 0 0.75rem 0;">Historical Price Trend (Daily Close)</h4>
+                <div id="ticker-history-chart" style="width: 100%; height: 250px;"></div>
             </div>
         </div>
     </div>
