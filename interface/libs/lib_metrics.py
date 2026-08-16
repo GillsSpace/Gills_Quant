@@ -217,16 +217,17 @@ def get_single_day_metrics_summary(ds, day):
             try:
                 with open(status_file, 'r') as f:
                     s = json.load(f)
-                    edgar_filings = s.get('edgar_filings_symbols_yesterday', 0)
+                    edgar_filings = s.get('edgar_filings_symbols_today', s.get('edgar_filings_symbols_yesterday', 0))
             except Exception:
                 pass
     else:
-        # Check specific day key in status.json to prevent today's count from bleeding into past days
-        if os.path.exists(status_file):
+        # For yesterday's card (all_days[-2]), load edgar_filings_symbols_yesterday from status.json
+        yesterday_str = all_days[-2] if len(all_days) > 1 else ""
+        if day_str == yesterday_str and os.path.exists(status_file):
             try:
                 with open(status_file, 'r') as f:
                     s = json.load(f)
-                    edgar_filings = s.get(f'edgar_filings_{day_str}', 0)
+                    edgar_filings = s.get('edgar_filings_symbols_yesterday', 0)
             except Exception:
                 pass
 

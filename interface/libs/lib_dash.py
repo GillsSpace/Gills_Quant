@@ -153,8 +153,8 @@ def get_dashboard_stats():
             except Exception:
                 pass
 
-        edgar_filings = status_data.get('edgar_filings_symbols_yesterday', 0)
-        edgar_status = f"Active ({edgar_filings} Filings Yday)"
+        edgar_filings = status_data.get('edgar_filings_symbols_today', status_data.get('edgar_filings_symbols_yesterday', 0))
+        edgar_status = f"Active ({edgar_filings} Filings)"
 
         stats['api_alpaca_status'] = alpaca_status
         stats['api_edgar_status'] = edgar_status

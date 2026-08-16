@@ -41,7 +41,12 @@ class TestUniverseManager(unittest.TestCase):
             "out": ["dummy_out_condition"]
         }
 
+        self.update_status_patcher = patch("logic.lib_files.update_status")
+        self.mock_update_status = self.update_status_patcher.start()
+
     def tearDown(self):
+        self.update_status_patcher.stop()
+
         # Restore class attributes
         UniverseManager.universe_folder_path = self.orig_universe_folder_path
         UniverseManager.log_base_path = self.orig_log_base_path

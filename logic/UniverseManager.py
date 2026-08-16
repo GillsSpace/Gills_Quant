@@ -95,25 +95,21 @@ class UniverseManager:
             timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             f.write(f"{timestamp} - Freshly Generated universe {universe_code} with {len(df)} symbols.\n")
 
-        UniverseManager._update_universe_status(universe_code, df)
-
     @staticmethod
-    def _update_universe_status(universe_code: str, df: pl.DataFrame):
-        try:
-            from logic.lib_files import update_status
-            symbol_count = len(df) if not df.is_empty() else 0
-            stocks_count = len(df.filter(pl.col('type') == 'stock')) if not df.is_empty() and 'type' in df.columns else 0
-            funds_count = len(df.filter(pl.col('type') == 'fund')) if not df.is_empty() and 'type' in df.columns else 0
-            
-            update_status({
-                f"{universe_code}_symbols_count": symbol_count,
-                f"{universe_code}_asset_breakdown": {
-                    "stocks": stocks_count,
-                    "funds": funds_count
-                }
-            })
-        except Exception as e:
-            print(f"Warning: Failed to update status.json for universe {universe_code}: {e}")
+    def get_universe_stats(df: pl.DataFrame) -> dict:
+        """
+        Returns structured statistics and asset breakdown for a universe DataFrame.
+        """
+        symbol_count = len(df) if not df.is_empty() else 0
+        stocks_count = len(df.filter(pl.col('type') == 'stock')) if not df.is_empty() and 'type' in df.columns else 0
+        funds_count = len(df.filter(pl.col('type') == 'fund')) if not df.is_empty() and 'type' in df.columns else 0
+        return {
+            "symbols_count": symbol_count,
+            "asset_breakdown": {
+                "stocks": stocks_count,
+                "funds": funds_count
+            }
+        }
 
     @staticmethod
     def regen_csv(universe_code: str):
@@ -206,12 +202,15 @@ class UniverseManager:
         else:
             print(f"\tRemoved 0 symbols")
 
-        UniverseManager._update_universe_status(universe_code, combined_df)
+        stats = UniverseManager.get_universe_stats(combined_df)
 
         return {
+            'universe_code': universe_code,
             'new_size': len(after_stocks_list),
             'added': sorted(added_stocks),
-            'removed': sorted(removed_stocks)
+            'removed': sorted(removed_stocks),
+            'symbols_count': stats['symbols_count'],
+            'asset_breakdown': stats['asset_breakdown']
         }
 
     @staticmethod

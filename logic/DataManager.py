@@ -19,13 +19,16 @@ from logic.UniverseManager import UniverseManager as UM
 
 warnings.filterwarnings("ignore", message=".*Zarr format 3.*")
 warnings.filterwarnings("ignore", message=".*does not have a Zarr V3 specification.*")
+warnings.filterwarnings("ignore", message=".*Increasing number of chunks.*")
 
 class DataManager:
 
     data_path = Path(__file__).resolve().parent.parent / 'data'
     hot_path = data_path / 'hot'
     cold_path = data_path / 'cold'
+    current_path = data_path / 'current'
     hot_path_db = hot_path / 'master_db.zarr'
+    current_edgar_file = current_path / 'current_edgar_data.parquet'
     log_path = Path(__file__).resolve().parent.parent / 'logs'
 
     master_universe = 'u00'
@@ -305,7 +308,7 @@ class DataManager:
     ], ordered=True)
 
     def __init__(self):
-        for path in [self.hot_path, self.cold_path, self.log_path]:
+        for path in [self.hot_path, self.cold_path, self.current_path, self.log_path]:
             os.makedirs(path, exist_ok=True)
 
     @staticmethod
@@ -565,23 +568,12 @@ class DataManager:
 
             ds_to_write.to_zarr(DataManager.hot_path_db, region=region_to_update, mode='r+')
 
-            try:
-                from logic.lib_files import update_status
-                total_size = 0
-                if os.path.exists(DataManager.hot_path_db):
-                    for dirpath, _, filenames in os.walk(DataManager.hot_path_db):
-                        for f in filenames:
-                            fp = os.path.join(dirpath, f)
-                            if os.path.exists(fp):
-                                total_size += os.path.getsize(fp)
-                update_status({
-                    "last_qvar_pull_time": f"{day} {time}",
-                    "hot_db_symbols_count": len(existing_idents),
-                    "hot_db_active_days_count": len(ds_disk.day.values) if ds_disk is not None else 0,
-                    "hot_db_disk_size_mb": round(total_size / (1024 * 1024), 2)
-                })
-            except Exception as status_e:
-                print(f"Warning: Failed to update status.json in save_qVar_data: {status_e}")
+            return {
+                "success": True,
+                "symbols_written": len(filtered_df),
+                "total_db_symbols": len(existing_idents),
+                "active_days_count": len(ds_disk.day.values) if ds_disk is not None else 0
+            }
         finally:
             if ds_disk is not None:
                 ds_disk.close()
@@ -719,12 +711,7 @@ class DataManager:
             })
 
             ds_to_write.to_zarr(DataManager.hot_path_db, region=region_to_update, mode='r+')
-
-            try:
-                from logic.lib_files import update_status
-                update_status({"fundamental_data_pulled_today": True})
-            except Exception as status_e:
-                print(f"Warning: Failed to update status.json in save_fVar_data: {status_e}")
+            return True
         finally:
             if ds_disk is not None:
                 ds_disk.close()
@@ -788,16 +775,19 @@ class DataManager:
             # Select only the days for the requested month/year
             ds_subset = ds_disk.sel(day=days_to_keep)
 
-            # Ensure full month calendar coverage (28-31 days)
+            # Ensure month coverage only up to today (do not pad future days of current month)
             _, num_days = calendar.monthrange(int(year), int(month))
-            target_month_days = return_day_str_range(f"{int(year)}-{month_str}-01", f"{int(year)}-{month_str}-{num_days:02d}")
+            current_date = datetime.now().date()
+            end_day = min(date(int(year), int(month), num_days), current_date)
+            target_month_days = return_day_str_range(f"{int(year)}-{month_str}-01", end_day.strftime("%Y-%m-%d"))
             missing_days = [d for d in target_month_days if d not in days_to_keep]
 
             if missing_days:
+                import dask.array as da
                 cold_idents = ds_disk.ident.values.tolist()
                 cold_time = ds_disk.time.values
-                empty_5m = np.full((len(missing_days), len(cold_time), len(cold_idents), len(DataManager.quote_fields)), np.nan)
-                empty_1d = np.full((len(missing_days), len(cold_idents), len(DataManager.fundamental_fields)), np.nan)
+                empty_5m = da.full((len(missing_days), len(cold_time), len(cold_idents), len(DataManager.quote_fields)), np.nan, chunks=(1, 288, 1000, 36))
+                empty_1d = da.full((len(missing_days), len(cold_idents), len(DataManager.fundamental_fields)), np.nan, chunks=(1, 1000, 77))
 
                 shells = xr.Dataset(
                     data_vars={
@@ -829,11 +819,6 @@ class DataManager:
 
             # Swap safely
             DataManager._safe_replace_zarr(temp_backup_path, backup_path)
-
-            # Backup current_edgar_data.parquet to cold storage
-            current_edgar_file = DataManager.data_path / 'current_edgar_data.parquet'
-            if current_edgar_file.exists():
-                shutil.copy2(current_edgar_file, DataManager.cold_path / 'current_edgar_data_backup.parquet')
 
         except Exception as e:
             print(f"Error creating cold backup for {year}-{int(month):02d}: {e}")
@@ -879,7 +864,10 @@ class DataManager:
             }
 
             if len(days_to_keep) == len(day_vals):
+                print(f"\t[Retention Trim] Checked {len(day_vals)} days in hot DB. No days older than retention ({DataManager.hot_data_retention_days} days).")
                 return stats  # No old data to remove
+
+            print(f"\t[Retention Trim] Trimming hot DB: {len(day_vals)} -> {len(days_to_keep)} days (Removing {len(days_removed)} days: {', '.join(days_removed[:5])}...)")
 
             # Select only the days to keep
             ds_subset = ds_disk.sel(day=days_to_keep)
@@ -910,6 +898,11 @@ class DataManager:
             idents_to_keep = [ident for ident in idents_before if ident in set_to_keep]
 
             idents_removed = [ident for ident in idents_before if ident not in idents_to_keep]
+
+            if idents_removed:
+                print(f"\t[Retention Trim] Removed {len(idents_removed)} empty historical tickers: {', '.join(idents_removed[:10])}")
+            else:
+                print(f"\t[Retention Trim] Retained all {len(idents_to_keep)} tickers in hot DB (0 empty tickers removed).")
 
             # Re-select dataset with valid idents only
             ds_subset = ds_subset.sel(ident=idents_to_keep)
@@ -947,32 +940,31 @@ class DataManager:
                 'idents_removed': idents_removed,
             })
 
-            try:
-                from logic.lib_files import update_status
-                total_size = 0
-                if os.path.exists(DataManager.hot_path_db):
-                    for dirpath, _, filenames in os.walk(DataManager.hot_path_db):
-                        for f in filenames:
-                            fp = os.path.join(dirpath, f)
-                            if os.path.exists(fp):
-                                total_size += os.path.getsize(fp)
-                update_status({
-                    "hot_db_active_days_count": len(days_to_keep),
-                    "hot_db_disk_size_mb": round(total_size / (1024 * 1024), 2)
-                })
-            except Exception as status_e:
-                print(f"Warning: Failed to update status.json in retention_trim_db: {status_e}")
-
             return stats
         finally:
             if 'ds_disk' in locals():
                 ds_disk.close()
 
     @staticmethod
+    def get_hot_db_disk_size_mb() -> float:
+        """
+        Calculates the total size of the hot database on disk in megabytes.
+        """
+        total_size = 0
+        if os.path.exists(DataManager.hot_path_db):
+            for dirpath, _, filenames in os.walk(DataManager.hot_path_db):
+                for f in filenames:
+                    fp = os.path.join(dirpath, f)
+                    if os.path.exists(fp):
+                        total_size += os.path.getsize(fp)
+        return round(total_size / (1024 * 1024), 2)
+
+    @staticmethod
     def insert_backup(overwrite_existing_cold=False, overwrite_existing_hot=False, remove_existing=False):
         backup_path = Path(__file__).resolve().parent.parent / 'data_backup'
         hot_backup_path = backup_path / 'hot'
         cold_backup_path = backup_path / 'cold'
+        current_backup_path = backup_path / 'current'
 
         if not backup_path.exists():
             return
@@ -984,6 +976,8 @@ class DataManager:
             # Use copytree to keep the backup source intact for future use
             shutil.copytree(hot_backup_path, DataManager.hot_path)
             shutil.copytree(cold_backup_path, DataManager.cold_path)
+            if current_backup_path.exists():
+                shutil.copytree(current_backup_path, DataManager.current_path)
             return # Exit early
 
         # 2. Selective Hot Overwrite
@@ -1013,17 +1007,20 @@ class DataManager:
     @staticmethod
     def create_backup():
         """
-        Creates a backup of the current data (hot and cold) into data_backup directory.
+        Creates a backup of the current data (hot, cold, current) into data_backup directory.
         """
         backup_path = Path(__file__).resolve().parent.parent / 'data_backup'
         hot_backup_path = backup_path / 'hot'
         cold_backup_path = backup_path / 'cold'
+        current_backup_path = backup_path / 'current'
 
         if backup_path.exists():
             shutil.rmtree(backup_path)
 
         shutil.copytree(DataManager.hot_path, hot_backup_path)
         shutil.copytree(DataManager.cold_path, cold_backup_path)
+        if DataManager.current_path.exists():
+            shutil.copytree(DataManager.current_path, current_backup_path)
             
     @staticmethod
     def return_db_stats() -> dict:

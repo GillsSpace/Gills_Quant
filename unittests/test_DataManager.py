@@ -30,6 +30,7 @@ class TestDataManager(unittest.TestCase):
         self.orig_data_path = DataManager.data_path
         self.orig_hot_path = DataManager.hot_path
         self.orig_cold_path = DataManager.cold_path
+        self.orig_current_path = DataManager.current_path
         self.orig_hot_path_db = DataManager.hot_path_db
         self.orig_log_path = DataManager.log_path
         self.orig_master_universe = DataManager.master_universe
@@ -40,6 +41,7 @@ class TestDataManager(unittest.TestCase):
         DataManager.data_path = self.test_dir / 'data'
         DataManager.hot_path = DataManager.data_path / 'hot'
         DataManager.cold_path = DataManager.data_path / 'cold'
+        DataManager.current_path = DataManager.data_path / 'current'
         DataManager.hot_path_db = DataManager.hot_path / 'master_db.zarr'
         DataManager.log_path = self.test_dir / 'logs'
         DataManager.master_universe = 'u_test'
@@ -51,15 +53,20 @@ class TestDataManager(unittest.TestCase):
         self.gen_csv_patcher = patch("logic.DataManager.UM.gen_csv")
         self.mock_gen_csv = self.gen_csv_patcher.start()
 
+        self.update_status_patcher = patch("logic.lib_files.update_status")
+        self.mock_update_status = self.update_status_patcher.start()
+
         self.dm = DataManager()
 
     def tearDown(self):
         self.gen_csv_patcher.stop()
+        self.update_status_patcher.stop()
 
         # Restore class attributes
         DataManager.data_path = self.orig_data_path
         DataManager.hot_path = self.orig_hot_path
         DataManager.cold_path = self.orig_cold_path
+        DataManager.current_path = self.orig_current_path
         DataManager.hot_path_db = self.orig_hot_path_db
         DataManager.log_path = self.orig_log_path
         DataManager.master_universe = self.orig_master_universe
@@ -308,12 +315,12 @@ class TestDataManager(unittest.TestCase):
     def test_make_month_cold_backup(self, mock_return_univ):
         """make_month_cold_backup extracts and stores specified month's data into cold storage."""
         mock_return_univ.return_value = ["AAPL"]
-        DataManager.create_new_db("2026-08-01")
-        DataManager.add_db_day_shell("2026-08-15")
+        DataManager.create_new_db("2026-07-01")
+        DataManager.add_db_day_shell("2026-07-15")
 
-        DataManager.make_month_cold_backup(8, 2026, overwrite_existing=True)
+        DataManager.make_month_cold_backup(7, 2026, overwrite_existing=True)
 
-        cold_file = DataManager.cold_path / "master_db_month__2026_08.zarr"
+        cold_file = DataManager.cold_path / "master_db_month__2026_07.zarr"
         self.assertTrue(cold_file.exists())
         ds_cold = xr.open_zarr(cold_file)
         self.assertEqual(len(ds_cold.day.values), 31)
@@ -526,49 +533,55 @@ class TestDataManager(unittest.TestCase):
     @patch("logic.lib_edgar.urllib.request.urlopen")
     def test_cross_process_filing_symbols_state_persistence(self, mock_urlopen, mock_cik_map):
         """Test that detect_todays_filing_symbols persists findings to disk for update_current_edgar_data_file."""
-        from logic.lib_edgar import detect_todays_filing_symbols, update_current_edgar_data_file, TODAYS_FILING_SYMBOLS_FILE
+        from logic.lib_edgar import detect_todays_filing_symbols, update_current_edgar_data_file
         import json
-        import os
+        import tempfile
+        from pathlib import Path
 
-        # Mock SEC RSS Atom response containing AAPL CIK
-        rss_xml = b'<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"><entry><title>10-Q - Apple Inc. (0000320193)</title></entry></feed>'
-        mock_resp = patch("urllib.request.urlopen").start()
-        mock_resp.return_value.__enter__.return_value.read.return_value = rss_xml
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            test_filings_file = Path(tmp_dir) / 'todays_filing_symbols.json'
+            test_parquet = Path(tmp_dir) / 'current_edgar_data.parquet'
 
-        # 1. Process 1 (03:20 AM): detect_todays_filing_symbols
-        detected = detect_todays_filing_symbols(universe_symbols=["AAPL", "MSFT"], max_retries=1)
-        self.assertIn("AAPL", detected)
-        self.assertTrue(TODAYS_FILING_SYMBOLS_FILE.exists())
+            rss_xml = b'<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"><entry><title>10-Q - Apple Inc. (0000320193)</title></entry></feed>'
+            mock_resp = patch("urllib.request.urlopen").start()
+            mock_resp.return_value.__enter__.return_value.read.return_value = rss_xml
 
-        with open(TODAYS_FILING_SYMBOLS_FILE, 'r') as f:
-            saved_symbols = json.load(f)
-        self.assertEqual(saved_symbols, ["AAPL"])
+            with patch("logic.lib_edgar.TODAYS_FILING_SYMBOLS_FILE", test_filings_file), \
+                 patch("logic.lib_edgar.CURRENT_EDGAR_PARQUET_FILE", test_parquet), \
+                 patch("logic.lib_files.update_status"):
 
-        # 2. Process 2 (03:25 AM): update_current_edgar_data_file with symbols_to_update=None
-        with patch("logic.lib_edgar.fetch_sec_company_facts", return_value={}):
-            df_updated = update_current_edgar_data_file(symbols_to_update=None, universe_symbols=["AAPL", "MSFT"], max_retries=1)
-            self.assertIsNotNone(df_updated)
+                # 1. Process 1 (03:20 AM): detect_todays_filing_symbols
+                detected = detect_todays_filing_symbols(universe_symbols=["AAPL", "MSFT"], max_retries=1)
+                self.assertIn("AAPL", detected)
+                self.assertTrue(test_filings_file.exists())
 
-        patch.stopall()
+                with open(test_filings_file, 'r') as f:
+                    saved_symbols = json.load(f)
+                self.assertEqual(saved_symbols, ["AAPL"])
 
-    def test_rebuild_current_edgar_data_file_from_cold_backup(self):
-        """Test rebuild_current_edgar_data_file restores from cold backup when primary parquet is missing."""
-        from logic.lib_edgar import rebuild_current_edgar_data_file, CURRENT_EDGAR_PARQUET_FILE, COLD_BACKUP_PARQUET_FILE
-        import shutil
+                # 2. Process 2 (03:25 AM): update_current_edgar_data_file with symbols_to_update=None
+                with patch("logic.lib_edgar.fetch_sec_company_facts", return_value={}):
+                    df_updated = update_current_edgar_data_file(symbols_to_update=None, universe_symbols=["AAPL", "MSFT"], max_retries=1)
+                    self.assertIsNotNone(df_updated)
 
-        # Ensure cold backup exists for test
-        COLD_BACKUP_PARQUET_FILE.parent.mkdir(parents=True, exist_ok=True)
-        dummy_df = pl.DataFrame([{"ident": "TEST_SYM", "revenue": 500.0}])
-        dummy_df.write_parquet(COLD_BACKUP_PARQUET_FILE)
+            patch.stopall()
 
-        # Remove primary parquet if exists
-        if CURRENT_EDGAR_PARQUET_FILE.exists():
-            os.remove(CURRENT_EDGAR_PARQUET_FILE)
+    def test_rebuild_current_edgar_data_file_direct(self):
+        """Test rebuild_current_edgar_data_file streams SEC facts directly when primary parquet is missing."""
+        from logic.lib_edgar import rebuild_current_edgar_data_file
+        import tempfile
+        from pathlib import Path
 
-        res_df = rebuild_current_edgar_data_file()
-        self.assertTrue(CURRENT_EDGAR_PARQUET_FILE.exists())
-        self.assertIn("TEST_SYM", res_df["ident"].to_list())
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            test_parquet = Path(tmp_dir) / 'current' / 'current_edgar_data.parquet'
+
+            with patch("logic.lib_edgar.CURRENT_EDGAR_PARQUET_FILE", test_parquet), \
+                 patch("logic.lib_edgar.fetch_sec_company_facts", return_value={}):
+
+                res_df = rebuild_current_edgar_data_file(universe_symbols=["AAPL"], max_retries=1)
+                self.assertIsNotNone(res_df)
 
 
 if __name__ == "__main__":
     unittest.main()
+

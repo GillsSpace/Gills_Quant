@@ -340,7 +340,7 @@ def extract_point_in_time_sec_fundamentals(facts: dict, target_day: str) -> dict
     return extracted
 
 
-CURRENT_EDGAR_PARQUET_FILE = Path(__file__).resolve().parent.parent / 'data' / 'current_edgar_data.parquet'
+CURRENT_EDGAR_PARQUET_FILE = Path(__file__).resolve().parent.parent / 'data' / 'current' / 'current_edgar_data.parquet'
 
 def update_ticker_cik_map(max_retries: int = 5) -> dict:
     """
@@ -360,13 +360,13 @@ def update_ticker_cik_map(max_retries: int = 5) -> dict:
             }
             with open(TICKER_CIK_CACHE_FILE, 'w') as f:
                 json.dump(ticker_map, f)
-            print(f"[03:15 EDGAR Map] Successfully updated SEC Ticker->CIK map ({len(ticker_map)} tickers).", flush=True)
+            print(f"\tUpdated SEC Ticker->CIK map ({len(ticker_map)} tickers)", flush=True)
             return ticker_map
         except Exception as e:
-            print(f"[03:15 EDGAR Map] Retry {attempt}/{max_retries} failed fetching SEC Ticker->CIK map: {e}", flush=True)
             if attempt < max_retries:
                 time.sleep(2 ** attempt)
-    print(f"[03:15 EDGAR Map] All {max_retries} retries failed. Using existing cached map.", flush=True)
+            else:
+                print(f"\tFailed fetching SEC Ticker->CIK map: {e}", flush=True)
     return get_ticker_cik_map(force_refresh=False)
 
 TODAYS_FILING_SYMBOLS_FILE = CACHE_DIR / 'todays_filing_symbols.json'
@@ -404,12 +404,12 @@ def detect_todays_filing_symbols(universe_symbols: list = None, max_retries: int
                         match = re.search(r'\((\d{10})\)', title.text)
                         if match:
                             ciks_today.add(match.group(1))
-            print(f"[03:20 EDGAR Detector] Successfully polled SEC RSS feed. Found {len(ciks_today)} SEC filings today.", flush=True)
             break
         except Exception as e:
-            print(f"[03:20 EDGAR Detector] Retry {attempt}/{max_retries} failed polling SEC RSS feed: {e}", flush=True)
             if attempt < max_retries:
                 time.sleep(2 ** attempt)
+            else:
+                print(f"\tFailed polling SEC RSS feed: {e}", flush=True)
                 
     symbols_to_update = []
     if universe_symbols:
@@ -421,25 +421,18 @@ def detect_todays_filing_symbols(universe_symbols: list = None, max_retries: int
     try:
         with open(TODAYS_FILING_SYMBOLS_FILE, 'w') as f:
             json.dump(symbols_to_update, f)
-        from logic.lib_files import update_status
-        update_status({"edgar_filings_symbols_yesterday": len(symbols_to_update)})
     except Exception as e:
-        print(f"Warning: Failed writing {TODAYS_FILING_SYMBOLS_FILE.name}: {e}")
+        print(f"\tWarning: Failed writing {TODAYS_FILING_SYMBOLS_FILE.name}: {e}")
 
-    print(f"[03:20 EDGAR Detector] Identified {len(symbols_to_update)} universe symbols filing today (saved to {TODAYS_FILING_SYMBOLS_FILE.name}).", flush=True)
     return symbols_to_update
-
-COLD_BACKUP_PARQUET_FILE = Path(__file__).resolve().parent.parent / 'data' / 'cold' / 'current_edgar_data_backup.parquet'
 
 def rebuild_current_edgar_data_file(universe_symbols: list = None, max_retries: int = 5) -> Any:
     """
-    Alternate recovery method to replace a lost, missing, or corrupted data/current_edgar_data.parquet file.
-    1. Attempts to restore from data/cold/current_edgar_data_backup.parquet if available.
-    2. If no cold backup exists, streams SEC facts directly in-memory for universe u00 symbols
-       and writes a fresh data/current_edgar_data.parquet file (zero raw JSON files saved to disk).
+    Alternate recovery method to replace a lost, missing, or corrupted data/current/current_edgar_data.parquet file.
+    Streams SEC facts directly in-memory for universe u00 symbols
+    and writes a fresh data/current/current_edgar_data.parquet file (zero raw JSON files saved to disk).
     """
     import polars as pl
-    import shutil
 
     if universe_symbols is None:
         try:
@@ -448,20 +441,9 @@ def rebuild_current_edgar_data_file(universe_symbols: list = None, max_retries: 
         except Exception:
             universe_symbols = []
 
-    print("[EDGAR Recovery] Attempting to rebuild missing data/current_edgar_data.parquet...", flush=True)
+    print(f"[EDGAR Recovery] Attempting to rebuild missing {CURRENT_EDGAR_PARQUET_FILE}...", flush=True)
 
-    # 1. Try restoring from cold storage backup
-    if COLD_BACKUP_PARQUET_FILE.exists():
-        try:
-            CURRENT_EDGAR_PARQUET_FILE.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(COLD_BACKUP_PARQUET_FILE, CURRENT_EDGAR_PARQUET_FILE)
-            restored_df = pl.read_parquet(CURRENT_EDGAR_PARQUET_FILE)
-            print(f"✓ [EDGAR Recovery] Restored {CURRENT_EDGAR_PARQUET_FILE.name} from cold backup ({len(restored_df)} symbols)!", flush=True)
-            return restored_df
-        except Exception as e:
-            print(f"[EDGAR Recovery] Failed restoring cold backup: {e}", flush=True)
-
-    # 2. Rebuild directly in-memory without saving any raw JSON cache files
+    # Rebuild directly in-memory without saving any raw JSON cache files
     ticker_cik_map = get_ticker_cik_map()
     target_day = time.strftime("%Y-%m-%d")
     
@@ -560,7 +542,7 @@ def update_current_edgar_data_file(symbols_to_update: list = None, universe_symb
         
     CURRENT_EDGAR_PARQUET_FILE.parent.mkdir(parents=True, exist_ok=True)
     current_df.write_parquet(CURRENT_EDGAR_PARQUET_FILE)
-    print(f"[03:25 EDGAR Update] Updated {CURRENT_EDGAR_PARQUET_FILE.name} (Total Symbols: {len(current_df)}).", flush=True)
+    print(f"\tUpdated {CURRENT_EDGAR_PARQUET_FILE.name} (Total Symbols: {len(current_df)})", flush=True)
     return current_df
 
 def read_current_edgar_data() -> Any:
